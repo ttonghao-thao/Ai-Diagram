@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "diagramId": "sample_network",
+  "name": "示例：核心交换机与三台服务器",
+  "diagramType": "network_topology",
+  "groups": [
+    {"id": "server_zone", "label": "服务器区", "geometry": {"x": 50, "y": 260, "width": 730, "height": 180}}
+  ],
+  "nodes": [
+    {"id": "wan", "label": "外部网络", "kind": "cloud", "properties": {}, "geometry": {"x": 350, "y": 10, "width": 130, "height": 60}},
+    {"id": "firewall", "label": "防火墙", "kind": "firewall", "properties": {}, "geometry": {"x": 350, "y": 100, "width": 130, "height": 60}},
+    {"id": "core_switch", "label": "核心交换机", "kind": "switch", "properties": {}, "geometry": {"x": 340, "y": 190, "width": 150, "height": 60}},
+    {"id": "server_01", "label": "服务器 01", "kind": "server", "groupId": "server_zone", "properties": {"ip": "192.0.2.11"}, "geometry": {"x": 90, "y": 320, "width": 160, "height": 70}},
+    {"id": "server_02", "label": "服务器 02", "kind": "server", "groupId": "server_zone", "properties": {"ip": "192.0.2.12"}, "geometry": {"x": 340, "y": 320, "width": 160, "height": 70}},
+    {"id": "server_03", "label": "服务器 03", "kind": "server", "groupId": "server_zone", "properties": {"ip": "192.0.2.13"}, "geometry": {"x": 590, "y": 320, "width": 160, "height": 70}}
+  ],
+  "edges": [
+    {"id": "wan_to_fw", "source": "wan", "target": "firewall", "kind": "physical", "direction": "undirected", "label": ""},
+    {"id": "fw_to_core", "source": "firewall", "target": "core_switch", "kind": "physical", "direction": "undirected", "label": ""},
+    {"id": "core_to_s1", "source": "core_switch", "target": "server_01", "kind": "physical", "direction": "undirected", "label": ""},
+    {"id": "core_to_s2", "source": "core_switch", "target": "server_02", "kind": "physical", "direction": "undirected", "label": ""},
+    {"id": "core_to_s3", "source": "core_switch", "target": "server_03", "kind": "physical", "direction": "undirected", "label": ""}
+  ],
+  "layout": {"algorithm": "layered", "direction": "DOWN", "preserveManualPositions": true},
+  "metadata": {"source": "fixture", "ipNote": "192.0.2.0/24 为文档示例保留网段，并非真实资产"}
+}

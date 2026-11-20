@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="ai-diagram-studio" compressed="false">
+  <diagram id="page-1" name="示例：核心交换机与三台服务器">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="645" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="g_server_zone" value="服务器区" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;" vertex="1" parent="1">
+          <mxGeometry x="40" y="467" width="560" height="138" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wan" value="外部网络" style="ellipse;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#E1F0FC;strokeColor=#8CAFD0;fontColor=#1B3A57;" vertex="1" parent="1">
+          <mxGeometry x="112.5" y="40" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_firewall" value="防火墙" style="whiteSpace=wrap;html=1;align=center;verticalAlign=middle;rounded=1;fillColor=#F8CECC;strokeColor=#B85450;fontColor=#5F1F1D;" vertex="1" parent="1">
+          <mxGeometry x="112.5" y="180" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_core_switch" value="核心交换机" style="whiteSpace=wrap;html=1;align=center;verticalAlign=middle;rounded=1;fillColor=#D8EBFC;strokeColor=#78A9CD;fontColor=#1B3A57;" vertex="1" parent="1">
+          <mxGeometry x="102.5" y="320" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_server_01" value="服务器 01" style="whiteSpace=wrap;html=1;align=center;verticalAlign=middle;rounded=1;fillColor=#E4F2E4;strokeColor=#85AE88;fontColor=#28402A;" vertex="1" parent="g_server_zone">
+          <mxGeometry x="200" y="48" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n_server_02" value="服务器 02" style="whiteSpace=wrap;html=1;align=center;verticalAlign=middle;rounded=1;fillColor=#E4F2E4;strokeColor=#85AE88;fontColor=#28402A;" vertex="1" parent="g_server_zone">
+          <mxGeometry x="380" y="48" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n_server_03" value="服务器 03" style="whiteSpace=wrap;html=1;align=center;verticalAlign=middle;rounded=1;fillColor=#E4F2E4;strokeColor=#85AE88;fontColor=#28402A;" vertex="1" parent="g_server_zone">
+          <mxGeometry x="20" y="48" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wan_to_fw" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;" edge="1" parent="1" source="n_wan" target="n_firewall">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fw_to_core" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;" edge="1" parent="1" source="n_firewall" target="n_core_switch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_core_to_s1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;" edge="1" parent="1" source="n_core_switch" target="n_server_01">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="177.5" y="426" />
+              <mxPoint x="320" y="426" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_core_to_s2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;" edge="1" parent="1" source="n_core_switch" target="n_server_02">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="215" y="416" />
+              <mxPoint x="500" y="416" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_core_to_s3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;" edge="1" parent="1" source="n_core_switch" target="n_server_03">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

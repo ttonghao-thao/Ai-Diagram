@@ -1,0 +1,29 @@
+{
+  "name": "ai-diagram-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase 0 renderer: GraphDocument -> ELK.js layered layout -> editable draw.io XML",
+  "bin": {
+    "ai-diagram-renderer": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "generate:network": "node dist/src/cli.js generate --input ../fixtures/network.graph.json --output ../out/network.drawio",
+    "generate:business": "node dist/src/cli.js generate --input ../fixtures/business.graph.json --output ../out/business.drawio",
+    "generate:all": "npm run generate:network && npm run generate:business",
+    "validate:network": "node dist/src/cli.js validate --input ../out/network.drawio",
+    "validate:business": "node dist/src/cli.js validate --input ../out/business.drawio",
+    "test": "npm run build && node --test \"dist/test/*.test.js\""
+  },
+  "dependencies": {
+    "elkjs": "0.12.1",
+    "fast-xml-parser": "5.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

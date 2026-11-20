@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ai-diagram-studio/graph.schema.json",
+  "title": "GraphDocument v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "diagramId", "name", "diagramType", "nodes", "groups", "edges", "layout"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "diagramId": {"$ref": "#/$defs/id"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200},
+    "diagramType": {"enum": ["network_topology", "business_architecture"]},
+    "nodes": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/node"}},
+    "groups": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/group"}},
+    "edges": {"type": "array", "maxItems": 3000, "items": {"$ref": "#/$defs/edge"}},
+    "layout": {"$ref": "#/$defs/layout"},
+    "metadata": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean", "null"]}},
+    "warnings": {"type": "array", "items": {"$ref": "#/$defs/warning"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"},
+    "geometry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "number"}, "y": {"type": "number"},
+        "width": {"type": "number", "exclusiveMinimum": 0},
+        "height": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "point": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y"],
+      "properties": {"x": {"type": "number"}, "y": {"type": "number"}}
+    },
+    "style": {
+      "type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 500},
+        "kind": {"enum": ["switch", "router", "firewall", "server", "vm", "cloud", "service", "database", "client", "generic"]},
+        "groupId": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "properties": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean", "null"]}},
+        "geometry": {"$ref": "#/$defs/geometry"},
+        "manualLocked": {"type": "boolean", "default": false},
+        "style": {"$ref": "#/$defs/style"},
+        "origin": {"enum": ["explicit", "ai", "imported"]}
+      }
+    },
+    "group": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 500},
+        "parentId": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "geometry": {"$ref": "#/$defs/geometry"},
+        "manualLocked": {"type": "boolean", "default": false},
+        "style": {"$ref": "#/$defs/style"}
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "source", "target", "kind", "direction"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "source": {"$ref": "#/$defs/id"},
+        "target": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["physical", "logical", "dataflow", "control", "dependency"]},
+        "direction": {"enum": ["undirected", "forward", "bidirectional"]},
+        "label": {"type": "string", "maxLength": 500},
+        "sourcePort": {"type": "string", "maxLength": 100},
+        "targetPort": {"type": "string", "maxLength": 100},
+        "waypoints": {"type": "array", "items": {"$ref": "#/$defs/point"}},
+        "style": {"$ref": "#/$defs/style"}
+      }
+    },
+    "layout": {
+      "type": "object", "additionalProperties": false,
+      "required": ["algorithm", "direction", "preserveManualPositions"],
+      "properties": {
+        "algorithm": {"enum": ["layered", "manual"]},
+        "direction": {"enum": ["DOWN", "RIGHT", "UP", "LEFT"]},
+        "preserveManualPositions": {"type": "boolean"}
+      }
+    },
+    "warning": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "message", "requiresConfirmation"],
+      "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "relatedIds": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "requiresConfirmation": {"type": "boolean"}
+      }
+    }
+  }
+}

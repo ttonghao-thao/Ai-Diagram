@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "diagramId": "sample_business",
+  "name": "示例：业务平台分区架构",
+  "diagramType": "business_architecture",
+  "groups": [
+    {"id": "external", "label": "外部系统"},
+    {"id": "platform", "label": "业务平台"},
+    {"id": "terminal_zone", "label": "终端侧"}
+  ],
+  "nodes": [
+    {"id": "partner", "label": "第三方业务系统", "kind": "service", "groupId": "external"},
+    {"id": "gateway", "label": "接口网关", "kind": "service", "groupId": "platform"},
+    {"id": "content", "label": "内容服务", "kind": "service", "groupId": "platform"},
+    {"id": "database", "label": "中心内容库", "kind": "database", "groupId": "platform"},
+    {"id": "client", "label": "终端设备", "kind": "client", "groupId": "terminal_zone"}
+  ],
+  "edges": [
+    {"id": "partner_gateway", "source": "partner", "target": "gateway", "kind": "logical", "direction": "forward", "label": "接口调用"},
+    {"id": "gateway_content", "source": "gateway", "target": "content", "kind": "dataflow", "direction": "forward", "label": "内容请求"},
+    {"id": "content_db", "source": "content", "target": "database", "kind": "dataflow", "direction": "bidirectional", "label": "内容读写"},
+    {"id": "client_gateway", "source": "client", "target": "gateway", "kind": "logical", "direction": "forward", "label": "接入认证"}
+  ],
+  "layout": {"algorithm": "layered", "direction": "DOWN", "preserveManualPositions": true},
+  "metadata": {"source": "fixture"}
+}

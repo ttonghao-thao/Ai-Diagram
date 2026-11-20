@@ -1,0 +1,109 @@
+{
+  "name": "AI Diagram Studio Codex Implementation Package",
+  "version": "1.1",
+  "date": "2026-11-21",
+  "scope": "Windows draw.io Desktop; EDDX only assessed and excluded",
+  "status": "Design and implementation instructions, not implemented source application",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 2241,
+      "sha256": "4ee2dad7201393e76e64e0f03eae1fe8aefd9c57cbb1fea2ca262b75bf2138a1"
+    },
+    {
+      "path": "CODEX_START_PROMPT.md",
+      "bytes": 1931,
+      "sha256": "81fc8f1c32c7ded84ad0b243fb52e80a70457a7b0ab870dd51324f08c8f8dfc3"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4923,
+      "sha256": "1e4ca7ca0dba2d2b54e4d2a8940adf7395607f14c025b6898246f0e597ee5a95"
+    },
+    {
+      "path": "contracts/graph.schema.json",
+      "bytes": 4520,
+      "sha256": "31243f6d0f49f26d4354c5cc133a89e211853477c15997a9782c22ac4ac5c78b"
+    },
+    {
+      "path": "contracts/patch.schema.json",
+      "bytes": 1240,
+      "sha256": "b98d57cfeafbc64c4aee57c4fbea20a965d3a102b019448992c527aca403b8c9"
+    },
+    {
+      "path": "docs/00_SCOPE_AND_DECISIONS.md",
+      "bytes": 4340,
+      "sha256": "0ac14043d9071623565dd1afaf9ffc0de306c06dca509b937164c724c8a19c94"
+    },
+    {
+      "path": "docs/01_ARCHITECTURE.md",
+      "bytes": 5680,
+      "sha256": "0f4972a4b389bfcc7d306c32e4f86bc666275ea22e580bbb72d9e540d300af6e"
+    },
+    {
+      "path": "docs/02_GRAPH_AND_PATCH.md",
+      "bytes": 6188,
+      "sha256": "1564270e3f8d4303ad73f4232a26d706798eaf47f4ea531572ce77a4da0c3366"
+    },
+    {
+      "path": "docs/03_DRAWIO_ADAPTER.md",
+      "bytes": 6339,
+      "sha256": "53c845f39a3681b7b9d0aa8944d56c8b166b05f3d1f38cbe2f7f743ca7366cd9"
+    },
+    {
+      "path": "docs/04_API_AND_STORAGE.md",
+      "bytes": 5677,
+      "sha256": "ca88f0995e8659e4ce14d3763faa0bf17243484a953fb21367c37623a850859a"
+    },
+    {
+      "path": "docs/05_IMPLEMENTATION_TASKS.md",
+      "bytes": 5118,
+      "sha256": "dc42a728e9ed8adecda769f19d34e6da4b3143314e0a73559e68eaa498cb9714"
+    },
+    {
+      "path": "docs/06_TEST_ACCEPTANCE.md",
+      "bytes": 5005,
+      "sha256": "9e031af294bc8e9903769075886732a5fc2c216b992e5c9cb3be90aca0012225"
+    },
+    {
+      "path": "docs/07_RISKS_AND_OPEN_QUESTIONS.md",
+      "bytes": 3302,
+      "sha256": "1bfb292510c424711c533a5ddab2dd2a04935abeec813105115244b18b600861"
+    },
+    {
+      "path": "fixtures/business.graph.json",
+      "bytes": 1515,
+      "sha256": "6392b5edf82f43aae30ee31573b53b91da848280931a4cda483599c4260bd5a4"
+    },
+    {
+      "path": "fixtures/network.drawio",
+      "bytes": 4067,
+      "sha256": "916de79ffa91c58209bccda30a844b66cd1f7b5fa2556f38bb91abd851ca36ad"
+    },
+    {
+      "path": "fixtures/network.graph.json",
+      "bytes": 2198,
+      "sha256": "0c1d5ec4ac760f4d8c0b4ff574684e361ab5933020d09fa73ec78ee31d24eee9"
+    },
+    {
+      "path": "fixtures/reference_images/IMG_0436.jpeg",
+      "bytes": 760571,
+      "sha256": "bb471c44b5d7bfbafb6457d6fbf472d1347c5adc8242be1e3284bf468f9eaba6"
+    },
+    {
+      "path": "fixtures/reference_images/IMG_0437.jpeg",
+      "bytes": 719168,
+      "sha256": "aaabef4510dae109103b11515e580879b8f3286ecf8f3db7ca8bc1174ed00e76"
+    },
+    {
+      "path": "scripts/validate_fixtures.py",
+      "bytes": 2199,
+      "sha256": "20c7825532d4233962f3056126b1d92d308a9ab16e337288e62e77d93593093a"
+    },
+    {
+      "path": "scripts/verify_package.py",
+      "bytes": 1430,
+      "sha256": "dc93f08560a4869490c2c3bd566a00c82b0ce3532d10c110d95c1fd49aeb17cc"
+    }
+  ]
+}
