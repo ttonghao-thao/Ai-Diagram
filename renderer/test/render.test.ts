@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { layoutGraph } from '../src/layout/elkLayout.js';
 import { serializeDrawio, escapeXml } from '../src/drawio/xmlWriter.js';
@@ -141,7 +141,8 @@ test('kind styles and physical undirected edges are reflected in the XML', async
   const phys = parsed.cellById.get(edgeCellId('wan_to_fw'));
   assert.ok(phys?.style?.includes('endArrow=none'));
   assert.equal(doc.nodes.length, 6);
-  // Fixture style color check only; delete the scratch file afterwards.
+  // Style assertions are done in memory; remove the scratch file.
+  rmSync(path.join(OUT_DIR, 'network-check-style.drawio'), { force: true });
 });
 
 test('unknown kinds map to the generic style (no unknown-kind crash)', () => {
