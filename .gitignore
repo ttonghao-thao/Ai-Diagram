@@ -1,12 +1,18 @@
 # Node
 node_modules/
 renderer/dist/
+frontend/dist/
 
 # Python
 __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# Runtime data (version snapshots, SQLite) — never commit user diagrams.
+storage/
+data/
+*.db
 
 # env / local
 .env

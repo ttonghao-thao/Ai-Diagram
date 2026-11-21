@@ -262,3 +262,55 @@ npm run generate:all             # 两张交付图以专业图标重新生成
 - [ ] business.drawio：数据库=存储阵列图标、终端=终端设备图标、服务=流程框；组容器拖动时组内图标随动。
 - [ ] 任一节点 Edit Style 中可见 `aiKind=...`（generic 节点还有 `aiDeviceType=...`）。
 - [ ] 修改图标尺寸后保存再打开，形状不变形、标签不丢。
+
+## 9. Phase 1：完整首次生成工作流（2026-11-21 交付）
+
+> 状态：**后端 API、版本存储、LLM 适配、最小 Web 工作台均已实现并通过自动化测试；docker compose 未在本机验证（无 Docker）**。
+> 按用户指示越过"Windows Desktop 人工闸门"继续开发；该闸门仍为 BLOCKED，Phase 1 产物在 Desktop 中的可编辑性沿未验证状态记录。
+
+### 9.1 实现内容（对照 docs/05 Phase 1 任务清单）
+
+| 任务 | 实现 |
+|---|---|
+| FastAPI（创建/查询/校验/布局/导出/版本列表） | `backend/app/api/diagrams.py`：`POST /api/v1/diagrams`、`GET /api/v1/diagrams/{id}`、`POST /api/v1/diagrams/parse`、`POST .../validate`、`POST .../layout`、`GET .../export/drawio?version=N`、`GET .../versions`、`GET /api/v1/health`；响应封套 `{requestId, data}` / `{requestId, error{code,message,details}}`；`/api/docs` 提供 OpenAPI |
+| SQLite + 文件版本快照 | `app/storage/db.py`（projects/diagrams/diagram_versions/ai_jobs 四表）+ `app/storage/versions.py`（`storage/diagrams/<id>/vNNNN/{graph.json, diagram.drawio, manifest.json, patch.json}`，SHA-256，原子 rename 发布，DB 失败回滚目录（V-03），`baseVersion` 乐观锁冲突返回 `VERSION_CONFLICT` 409） |
+| 渲染子进程桥接 | `app/services/renderer.py`：argv 数组 + `shell=False` + timeout + 输出大小上限；renderer 的 `ERROR <CODE>` stderr 协议映射为 API 错误码 |
+| 最小 React 管理台 | `frontend/`（React 18 + TS + Vite）：生成图纸 / 文本解析 / 校验 Graph / 图纸与版本（列表、版本历史、SHA-256、逐版本下载、基于当前版本重排）。无画布 |
+| LLM adapter | `app/llm/adapter.py`：`MockLlmAdapter`（确定性规则解析，动词感知的边类型：读写→dataflow 双向 / 调用→logical 正向 / 设备连接→physical 无向；数量词展开；IP 片段显式不解析并告警）+ `OpenAICompatibleAdapter`（/chat/completions、JSON 约束提示词、Pydantic 校验、最多 LLM_MAX_RETRIES 次修复反馈，超限 `LLM_INVALID_OUTPUT`）；`LLM_ENABLED=false` 时 JSON 路径完整可用（A-01） |
+| 不制造事实 | mock 解析器不虚构连接/IP/端口：无端点子句→`AMBIGUOUS_RELATION`（requiresConfirmation=true）且不建边；未知设备→generic+deviceType+`DEVICE_TYPE_GUESSED`；含 IP→`IP_ADDRESSES_NOT_PARSED` |
+
+### 9.2 实际执行的命令与结果
+
+```bash
+cd backend && python3 -m pytest         # 55 passed（24 Phase 0/0.5 + 14 Phase 1 API + 17 文本用例）
+cd frontend && npm install && npm run build   # 构建成功（151.63 kB JS / 2.21 kB CSS）
+cd renderer && npm test                 # 45/45（未受 Phase 1 影响）
+python3 -m uvicorn app.main:app ...     # 浏览器端到端冒烟：生成 v1 + 下载 + mock 文本解析（截图见对话记录）
+```
+
+Phase 1 闸门"至少 10 个文本用例可生成合法 Graph"：`tests/test_phase1_text_cases.py` 覆盖 12 个正向用例 + 5 个真实错误/边界用例（无设备文本、自环、未知设备、歧义子句、ID 派生），全部通过并作为归档。
+
+### 9.3 端到端冒烟（真实执行）
+
+`LLM_ENABLED=true LLM_PROVIDER=mock uvicorn app.main:app` 启动后浏览器操作：
+1. 生成页加载"网络拓扑"示例 → 点击生成 → `已创建 demo_network … v1` + SHA-256 + 下载链接（截图确认）。
+2. 文本解析页输入"一台核心交换机连接三台服务器" → 草稿 4 节点/3 边/Schema 合法（截图确认）。
+3. `/health` 与 `/api/v1/health` 均报告 rendererAvailable=true、llm enabled(mock)。
+
+### 9.4 决策记录（Phase 1 追加）
+
+| # | 决策 | 说明 |
+|---|---|---|
+| D-P1-1 | 创建图纸直接接收 GraphDocument JSON（而非仅文本） | docs/04 的 parse 端点独立存在；JSON 直达路径即 D-07 确定性路径 |
+| D-P1-2 | `POST /diagrams/{id}/layout` 以新版本落盘（origin=layout）而非仅返回预览 | Phase 1 无局部修改，整图重排 = 新版本；`baseVersion` 必填并做 409 检查 |
+| D-P1-3 | ai_jobs 只记录请求元数据（类型/提供商/状态/耗时/错误码），不记录原文与拓扑 | docs/04 §6 日志红线 |
+| D-P1-4 | mock 解析器的边类型按动词区分（读写=数据流双向、调用=逻辑正向、连接=物理无向） | 确定性可测试；真实模型接入后由提示词约束（`llm/prompts.py`） |
+| D-P1-5 | `documentWarnings` 与校验器警告在 API 分列返回 | LLM 产生的 warning（歧义/未知设备/IP）与语义校验警告来源不同，前端分别着色 |
+| D-P1-6 | compose/Dockerfile 已编写但未在本机执行 | 本机无 Docker；启动命令、卷挂载与构建步骤经人工核对，标记"未验证"，见 §9.5 |
+
+### 9.5 Phase 1 已知限制
+
+1. **docker compose up --build 未实际执行**（本机无 Docker）；`deploy/Dockerfile`（node:20-bookworm-slim + python3）与 `deploy/compose.yaml` 仅为交付物。
+2. 文本解析质量为 mock 基线：复杂句式/嵌套分区不做承诺（docs/06 §5 的语义质量评估属后续基准工作）。
+3. 前端"重新布局"在并发修改下可能返回 409（乐观锁按设计生效，UI 提示错误码）。
+4. LLM 兼容端点的 `response_format=json_object` 依赖服务商支持；不支持时由 JSON 提取兜底 + 有限重试。

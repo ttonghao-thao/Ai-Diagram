@@ -1,0 +1,71 @@
+/** Thin API client for the requestId/data envelope (docs/04 section 1). */
+
+export class ApiError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: unknown,
+    public status?: number,
+  ) {
+    super(message);
+  }
+}
+
+interface Envelope<T = Record<string, unknown>> {
+  requestId: string;
+  data?: T;
+  error?: { code: string; message: string; details?: unknown };
+}
+
+async function request<T = any>(path: string, init?: RequestInit): Promise<{ data: T; requestId: string }> {
+  let resp: Response;
+  try {
+    resp = await fetch(path, init);
+  } catch (err) {
+    throw new ApiError('NETWORK_ERROR', `无法连接服务端：${String(err)}`);
+  }
+  let body: Envelope;
+  try {
+    body = await resp.json();
+  } catch {
+    throw new ApiError('BAD_RESPONSE', `HTTP ${resp.status}（响应不是 JSON）`, undefined, resp.status);
+  }
+  if (!resp.ok || body.error) {
+    const err = body.error ?? { code: 'HTTP_ERROR', message: `HTTP ${resp.status}` };
+    throw new ApiError(err.code, err.message, err.details, resp.status);
+  }
+  return { data: body.data as T, requestId: body.requestId };
+}
+
+export const api = {
+  health: () => request('/api/v1/health'),
+  listDiagrams: () => request('/api/v1/diagrams'),
+  getDiagram: (id: string) => request(`/api/v1/diagrams/${encodeURIComponent(id)}`),
+  listVersions: (id: string) => request(`/api/v1/diagrams/${encodeURIComponent(id)}/versions`),
+  createDiagram: (graph: unknown) =>
+    request('/api/v1/diagrams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(graph),
+    }),
+  parseText: (text: string, diagramType: string) =>
+    request('/api/v1/diagrams/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, diagramType }),
+    }),
+  validateGraph: (graph: unknown) =>
+    request('/api/v1/diagrams/-/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ graph }),
+    }),
+  layoutDiagram: (id: string, baseVersion: number) =>
+    request(`/api/v1/diagrams/${encodeURIComponent(id)}/layout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseVersion }),
+    }),
+  exportUrl: (id: string, version?: number) =>
+    `/api/v1/diagrams/${encodeURIComponent(id)}/export/drawio${version ? `?version=${version}` : ''}`,
+};

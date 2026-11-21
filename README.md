@@ -44,7 +44,12 @@ python scripts/validate_fixtures.py
 
 上述检查仅验证 JSON、XML 的结构与引用关系，**不代表 Desktop 兼容性已通过**。
 
-## Phase 0 / 0.5 实现与运行命令（2026-11-21）
+## Phase 0 / 0.5 / 1 实现与运行命令（2026-11-21）
+
+确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
+Phase 0.5 追加**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）；
+Phase 1 交付 **FastAPI + SQLite/文件版本快照 + LLM（mock/OpenAI-compatible）+ 最小 React 工作台**。
+**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)。
 
 确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
 Phase 0.5 追加了**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）。
@@ -63,13 +68,22 @@ node dist/src/cli.js generate --input ../fixtures/network.graph.json --output ..
 node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icons-dir <自定义SVG目录>
 node dist/src/cli.js validate  --input ../out/network.drawio
 
-# 3) 图模型与语义校验（Pydantic v2）
-cd ../backend && python3 -m pytest   # 24 个测试（G-01~G-05 + 输出复验）
+# 3) 图模型与语义校验 + Phase 1 API（FastAPI + SQLite + LLM mock）
+cd ../backend && python3 -m pytest   # 55 个测试（G/X 系列 + A/V 系列 + 12 个文本用例）
+
+# 4) Web 工作台（Phase 1）
+cd ../frontend && npm install && npm run build     # 产物由 FastAPI 静态挂载
+cd .. && LLM_ENABLED=true LLM_PROVIDER=mock python3 -m uvicorn app.main:app --app-dir backend
+#   打开 http://127.0.0.1:8000/ （生成 / 文本解析 / 校验 / 版本与下载）
+
+# 5) Docker（未在本机验证）
+cd deploy && cp env.example .env && docker compose up --build
 ```
 
-新增实现目录：`backend/`（Pydantic 模型 + 语义校验）、`renderer/`（TypeScript 渲染器 CLI + 图标注册表 +
-`assets/icons/` 自定义 SVG 目录）、`out/`（本阶段两张交付图）、`deploy/env.example`（Phase 1 配置预留）；
-`frontend/` 为 Phase 1 占位。
+实现目录：`backend/`（Pydantic 模型 + 语义校验 + FastAPI + 版本存储 + LLM adapter）、
+`renderer/`（TypeScript 渲染器 CLI + 图标注册表 + `assets/icons/` 自定义 SVG 目录）、
+`frontend/`（React 最小工作台，无画布）、`out/`（Phase 0 两张交付图）、
+`deploy/`（env.example / Dockerfile / compose.yaml）。
 
 ## 文件目录
 
