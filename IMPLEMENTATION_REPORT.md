@@ -314,3 +314,70 @@ Phase 1 闸门"至少 10 个文本用例可生成合法 Graph"：`tests/test_pha
 2. 文本解析质量为 mock 基线：复杂句式/嵌套分区不做承诺（docs/06 §5 的语义质量评估属后续基准工作）。
 3. 前端"重新布局"在并发修改下可能返回 409（乐观锁按设计生效，UI 提示错误码）。
 4. LLM 兼容端点的 `response_format=json_object` 依赖服务商支持；不支持时由 JSON 提取兜底 + 有限重试。
+
+## 10. Phase 2：Desktop 回导与 AI 增量修改（2026-11-21 交付）
+
+> 状态：**安全导入器、Diff、GraphPatch 引擎、预览/确认/原子应用、XML 定向编辑、前端两个新页签均已实现并通过自动化测试**；真实 Windows Desktop 上传回导仍属 BLOCKED 人工闸门（本阶段用"模拟桌面修改的 XML"完成自动化与 API 级验证）。
+
+### 10.1 实现内容（对照 docs/05 Phase 2 任务清单）
+
+| 任务 | 实现 |
+|---|---|
+| 2.1 安全解析未压缩与压缩页 | `app/importer/xml_parser.py`：压缩页按 drawio v24.7.17 `Graph.compress/decompress` 源码确认的管线解码（`encodeURIComponent(xml) → deflateRaw → base64`，Python 侧 `quote(safe="!~*'()") + zlib(wbits=-15) + b64`）；**解压后大小上限 6MB（流式解压防炸弹）**；上传 ≤10MB；DOCTYPE/ENTITY 一律拒绝；多页文件 → `DRAWIO_UNSUPPORTED_CONTENT`（415），原文件不动 |
+| 2.1 识别 mxCell/object/UserObject 等 | `object`/`UserObject` 包装：外层 id/label + 内层 mxCell 合并解析；`aiKind`/`aiDeviceType` 样式键反推设备类型；未知 cell（无 n_/g_/e_ 前缀且无 aiKind）收集为 unknown 列表，**原样保留不删除不转换** |
+| 2.1 差异预览 | `model_map.diff_graphs`：节点增删/改名/移动/类型变化，边增删/重接/标签变化，组增删/改名，附 summary 计数 |
+| 2.1 baseVersion + preview→commit | `POST /import/drawio`（multipart+baseVersion）→ 一次性 confirmationToken（内存 TTL 15min）；`POST /import/commit` 重新核对当前版本后提交；**提交时上传的 XML 原样存储**（XML=图形事实源），派生 graph 为语义视图；语义-only 字段（properties/origin/manualLocked）从当前版本为存活节点保留（桌面改名/移动不会丢 IP 标注） |
+| 2.2 Patch 9 种操作 | `app/graph/patch.py`：先经 `contracts/patch.schema.json`（jsonschema Draft 2020-12）校验，再逐操作语义校验；add/update/remove × node/edge/group；全部操作先应用到内存副本并整体校验，失败不产生半成品 |
+| 2.2 破坏性确认 | remove_node 有关联边 → 需 `requiresConfirmation` 或 `cascade`；remove_edge/update_edge 改端点/类型 → 需 `requiresConfirmation`；remove_group 非空 → 需确认+cascade；缺确认 → `DESTRUCTIVE_CHANGE_CONFIRMATION_REQUIRED`（422） |
+| 2.2 位置保护 | `manualLocked` 对象的 geometry 更新 → `LAYOUT_CONFLICT`（409）；新增组内成员时：组内锚点插入，未锁定的满组向下扩容（成员不动），锁定满组 → `LAYOUT_CONFLICT`；根级节点锚点邻近插入 + 画布向下扩容；从不自动全图重排（`layoutPlan.movedNodes` 恒为空） |
+| 2.2 定向 XML 修改 | `app/importer/xml_edit.py`：只改动受影响 cell（绝对→相对坐标换算走 XML 父链）；新增节点样式复用 Phase 0.5 stencil 模板 + aiKind；边按 kind/direction 生成箭头与固定锚点；未知 cell 与其他用户样式逐字节保留；graphId↔cellId 映射存入 manifest（导入重映射场景） |
+| API | `POST /api/v1/diagrams/{id}/import/drawio`、`/import/commit`、`/patch/preview`、`/patch/apply`；apply 需一次性令牌 + baseVersion 双重核对，令牌预览后重放/版本推进 → 409 |
+| mock propose_patch | 支持"新增N台设备并连接目标 / 删除目标 / 重命名目标为新名"；目标按 label 精确→包含匹配，命中多个或未命中 → `AMBIGUOUS_RELATION`（不虚构连接）；新增节点 id 用推断出的英文 kind 作基名（firewall_1 等） |
+| 前端 | 新增"导入回导"页（选图纸→上传→差异表+警告→确认提交）与"AI 修改"页（指令→预览（确认要求/受影响对象/警告/布局计划/差异）→确认应用→下载新版本） |
+
+### 10.2 实际执行的命令与结果
+
+```bash
+cd backend && python3 -m pytest      # 76 passed（24 Phase 0/0.5 + 31 Phase 1 + 21 Phase 2）
+cd renderer && npm test              # 45/45（未受影响）
+# API 级全链路（curl，真实执行）：
+# v1 initial → patch preview/apply → v2 ai_patch → 模拟桌面修改 → import preview/commit → v3 desktop_import
+# → 指令 patch → v4 ai_patch；版本链 [(1,initial),(2,ai_patch),(3,desktop_import),(4,ai_patch)]
+# 浏览器 UI：AI 修改页 预览→应用 截图确认；重复指令正确返回 GRAPH_DUPLICATE_ID 错误面板
+```
+
+### 10.3 测试覆盖（docs/06 §3 对应）
+
+| 编号 | 结果 | 说明 |
+|---|---|---|
+| I-01 | ✅ | 未压缩回读：diff=0 + 提交后 v2 graph 与 v1 一致；桌面模拟修改（改名/移动/重接）diff 正确且 XML 原样存储 |
+| I-02 | ✅ | 压缩页按 drawio 管线解码（测试内用同管线构造压缩文件，断言往返） |
+| I-03 | ✅ | 未知自定义 cell：警告 `UNKNOWN_CELLS_PRESERVED`；提交与后续 Patch 应用后 `custom_shape` 仍逐字存在 |
+| I-04 | ✅ | 多页文件 415 拒绝，current_version 不变 |
+| I-05 | ✅ | DOCTYPE/ENTITY 400 拒绝；超大上传 413；压缩炸弹（~8MB 解压）413/415 拒绝 |
+| P-01 | ✅ | 新增 2 节点 2 边：旧对象几何逐项不变；XML 新 cell parent=g_server_zone、stencil 样式、aiKind；令牌一次性 |
+| P-02 | ✅ | 删除有关联边节点：未确认 422；确认+cascade 后边级联移除 |
+| P-03 | ✅ | 重接线未确认 422；确认后 XML target 更新 |
+| P-04 | ✅ | manualLocked 节点移动 → 409 `LAYOUT_CONFLICT`；锁定满组插入 → 409；未锁满组向下扩容且成员不动 |
+| P-05 | ✅ | 预览不落库；令牌在版本推进后 apply → 409；baseVersion 不符 → 409 |
+| 补充 | ✅ | patch.schema.json 非法结构 400；禁改字段（kind 等）400；mock 指令目标歧义 422 |
+
+### 10.4 决策记录（Phase 2 追加）
+
+| # | 决策 | 说明 |
+|---|---|---|
+| D-P2-1 | 提交回导时**上传 XML 原样入库**，派生 graph 仅作语义视图 | docs/02 §8：XML 是图形事实源；确保未知对象与用户样式零损耗 |
+| D-P2-2 | 语义-only 字段（properties/origin/manualLocked）跨桌面回导保留 | XML 不承载这些字段，不做保留会导致 IP 标注等语义数据在正常桌面循环中丢失 |
+| D-P2-3 | 创建/重排后用渲染输出的真实几何**回写存储 graph**（reconcile_geometry） | 否则存储 graph 保留占位坐标，回导 diff 会显示全量移动；同时保证锚点插入基于真实位置 |
+| D-P2-4 | Patch 应用 = 预览重放 + 定向 XML 编辑 + 原子提交 | 预览令牌一次性消费；apply 时对当前版本重新跑 preview，杜绝"预览后图已变"的陈旧应用 |
+| D-P2-5 | 根级无空位时允许画布向下扩容，锁定满组才 LAYOUT_CONFLICT | docs/03 §6 允许"扩容画布/组（需保留相关对象）"；冲突语义收敛到"无法不动锁定对象" |
+| D-P2-6 | Python 侧节点/边样式模板与 TS iconRegistry 重复一份 | 定向编辑不经过 ELK 渲染器；两份模板同为 mxgraph.networks 权威映射，报告中声明同步义务（与 D-P0-7 同类） |
+| D-P2-7 | 预览令牌存内存（TTL 15min、一次性） | 单进程 MVP；多实例部署需改外部存储，已在限制中记录 |
+
+### 10.5 Phase 2 已知限制
+
+1. **真实 Windows Desktop 上传回导未执行**（闸门 BLOCKED 继承）；自动化以模拟桌面修改的 XML 覆盖。
+2. 导入不支持多页（显式拒绝）；压缩页可读但**Patch 应用对压缩存储页显式拒绝**（先回导一次即转为未压缩）。
+3. 令牌存内存：重启服务后未消费的预览令牌失效（客户端需重新预览）。
+4. `renderer validate` 未接入导入流程的结构预检（导入走 Python 解析器自校验，二者规则一致但实现独立）。
+5. Diff 为字段级摘要，不含样式级细粒度（style 变更未逐键对比）。

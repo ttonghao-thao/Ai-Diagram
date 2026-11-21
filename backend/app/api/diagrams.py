@@ -7,17 +7,16 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
+from app.api.envelope import ok
 from app.graph.errors import GraphValidationError
 from app.graph.validate import collect_graph_issues, validate_graph
 from app.schemas.api import ApiException, ErrorCode
 from app.schemas.graph import GraphDocument
 from app.storage.versions import utc_now
+from app.importer.xml_parser import parse_drawio_bytes
+from app.importer.model_map import graph_from_cells
 
 router = APIRouter(prefix="/api/v1")
-
-def ok(request: Request, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Wrap route payloads into the requestId/data envelope (docs/04 section 1)."""
-    return {"requestId": getattr(request.state, "requestId", "") or "-", "data": data}
 
 
 def parse_and_validate(raw: Dict[str, Any]) -> tuple[GraphDocument, list]:
@@ -58,6 +57,30 @@ class ValidateRequest(BaseModel):
 
 class LayoutRequest(BaseModel):
     baseVersion: int = Field(ge=1)
+
+
+
+def reconcile_geometry(graph_dict: Dict[str, Any], rendered_xml: bytes) -> Dict[str, Any]:
+    """Sync the stored graph's geometry with the actual rendered positions.
+
+    The renderer (ELK) decides final coordinates; without this step the stored
+    graph would keep user-supplied placeholders and every re-import would look
+    like a full move. Cell mapping is the stable n_/g_ prefix scheme.
+    """
+    parsed = parse_drawio_bytes(rendered_xml)
+    result = graph_from_cells(parsed, graph_dict["diagramId"], graph_dict["name"], graph_dict["diagramType"])
+    node_geo = {n.id: n.geometry for n in result.graph.nodes}
+    group_geo = {g.id: g.geometry for g in result.graph.groups}
+    for node in graph_dict["nodes"]:
+        geo = node_geo.get(node["id"])
+        if geo is not None:
+            node["geometry"] = geo.model_dump()
+    for group in graph_dict["groups"]:
+        geo = group_geo.get(group["id"])
+        if geo is not None:
+            group["geometry"] = geo.model_dump()
+    return graph_dict
+
 
 
 def _get_state(request: Request):
@@ -125,11 +148,12 @@ async def create_diagram(request: Request, graph: Dict[str, Any]) -> Dict[str, A
         )
     render = state.renderer.render(graph)
     state.db.create_diagram(doc.diagramId, doc.name, doc.diagramType, utc_now())
+    graph_stored = reconcile_geometry(doc.model_dump(exclude_none=True), render.drawio_bytes)
     row = state.version_store.commit_new_version(
         diagram_id=doc.diagramId,
         diagram_name=doc.name,
         diagram_type=doc.diagramType,
-        graph=doc.model_dump(exclude_none=True),
+        graph=graph_stored,
         drawio_bytes=render.drawio_bytes,
         origin="initial",
     )
@@ -203,11 +227,12 @@ async def layout_diagram(request: Request, diagram_id: str, body: LayoutRequest)
     graph = state.version_store.read_graph(diagram_id, diagram.current_version)
     doc, warnings = parse_and_validate(graph)
     render = state.renderer.render(graph)
+    graph_stored = reconcile_geometry(doc.model_dump(exclude_none=True), render.drawio_bytes)
     row = state.version_store.commit_new_version(
         diagram_id=diagram_id,
         diagram_name=diagram.name,
         diagram_type=diagram.diagram_type,
-        graph=doc.model_dump(exclude_none=True),
+        graph=graph_stored,
         drawio_bytes=render.drawio_bytes,
         origin="layout",
         expected_base_version=body.baseVersion,

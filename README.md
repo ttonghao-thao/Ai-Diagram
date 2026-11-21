@@ -44,11 +44,12 @@ python scripts/validate_fixtures.py
 
 上述检查仅验证 JSON、XML 的结构与引用关系，**不代表 Desktop 兼容性已通过**。
 
-## Phase 0 / 0.5 / 1 实现与运行命令（2026-11-21）
+## Phase 0 / 0.5 / 1 / 2 实现与运行命令（2026-11-21）
 
 确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
 Phase 0.5 追加**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）；
-Phase 1 交付 **FastAPI + SQLite/文件版本快照 + LLM（mock/OpenAI-compatible）+ 最小 React 工作台**。
+Phase 1 交付 **FastAPI + SQLite/文件版本快照 + LLM（mock/OpenAI-compatible）+ 最小 React 工作台**；
+Phase 2 交付 **Desktop 回导（安全解析/压缩页/Diff/未知对象保留）+ GraphPatch 增量修改（预览→确认→原子应用、位置保护、XML 定向编辑）**。
 **Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)。
 
 确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
@@ -69,9 +70,9 @@ node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icon
 node dist/src/cli.js validate  --input ../out/network.drawio
 
 # 3) 图模型与语义校验 + Phase 1 API（FastAPI + SQLite + LLM mock）
-cd ../backend && python3 -m pytest   # 55 个测试（G/X 系列 + A/V 系列 + 12 个文本用例）
+cd ../backend && python3 -m pytest   # 76 个测试（G/X + A/V + 文本用例 + I/P 系列）
 
-# 4) Web 工作台（Phase 1）
+# 4) Web 工作台（Phase 1/2：生成 / 解析 / 校验 / 版本 / 导入回导 / AI 修改）
 cd ../frontend && npm install && npm run build     # 产物由 FastAPI 静态挂载
 cd .. && LLM_ENABLED=true LLM_PROVIDER=mock python3 -m uvicorn app.main:app --app-dir backend
 #   打开 http://127.0.0.1:8000/ （生成 / 文本解析 / 校验 / 版本与下载）

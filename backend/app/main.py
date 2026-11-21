@@ -15,6 +15,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import diagrams as diagrams_api
+from app.api import imports as imports_api
+from app.api import patches as patches_api
 from app.config import get_settings
 from app.llm.adapter import build_adapter
 from app.schemas.api import ApiException, ApiError, ApiErrorBody, ErrorCode, new_request_id
@@ -82,6 +84,8 @@ def create_app(settings=None) -> FastAPI:
         return {"status": "ok", "rendererAvailable": app.state.renderer.available()}
 
     app.include_router(diagrams_api.router)
+    app.include_router(imports_api.router)
+    app.include_router(patches_api.router)
 
     # Static frontend (built React admin console) — mounted last so /api and
     # /health take precedence. Missing dist simply omits the UI.

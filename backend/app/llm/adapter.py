@@ -237,10 +237,94 @@ class MockLlmAdapter:
         return GraphDocument.model_validate(payload)
 
     async def propose_patch(self, instruction: str, graph: GraphDocument, base_version: int) -> Dict[str, Any]:
-        raise ApiException(
-            ErrorCode.LLM_UNAVAILABLE,
-            "mock adapter does not implement propose_patch until Phase 2",
-        )
+        """Deterministic instruction -> patch. Supported verbs:
+
+        - 新增/添加 <数量><设备> 并连接<目标标签>  -> add_node (+add_edge)
+        - 删除<标签>                              -> remove_node (requiresConfirmation+cascade)
+        - 重命名<标签>为<新名> / 把<标签>改名为<新名> -> update_node label
+
+        No fabrication: add_edge only targets existing node labels; an
+        unmatched target raises AMBIGUOUS_RELATION.
+        """
+        text = instruction.strip()
+        operations: List[Dict[str, Any]] = []
+        warnings: List[str] = []
+
+        def find_node(label_part: str):
+            exact = next((n for n in graph.nodes if n.label == label_part), None)
+            if exact:
+                return exact
+            matches = [n for n in graph.nodes if label_part and label_part in n.label]
+            if len(matches) == 1:
+                return matches[0]
+            raise ApiException(
+                ErrorCode.AMBIGUOUS_RELATION,
+                f'目标"{label_part}"匹配到 {len(matches)} 个节点，无法唯一确定' if matches
+                else f'未找到目标节点"{label_part}"，不会虚构连接',
+                [n.id for n in matches][:10],
+            )
+
+        # 1) add nodes (+ optional connection)
+        for m in re.finditer(r"(?:新增|添加|加)\s*([一二两三四五六七八九十\d]+)\s*(台|个|套|组)?\s*([^\s，,。；;]+?)(?:并连接|连接到|连接)([^\s，,。；;]+)", text):
+            count = _NUMBER_WORDS.get(m.group(1), None)
+            if count is None and m.group(1).isdigit():
+                count = int(m.group(1))
+            if not count or not (1 <= count <= 20):
+                continue
+            kind_word, target_label = m.group(3), m.group(4)
+            target = find_node(target_label)
+            kind, guessed = _infer_kind(kind_word)
+            # Use the inferred English kind as the id base so CJK device names
+            # still produce meaningful schema-valid ids (firewall_1 etc.).
+            base_id = _safe_id(kind, {n.id for n in graph.nodes})
+            for i in range(1, count + 1):
+                node_id = base_id if count == 1 else f"{base_id}_{i}"
+                label = kind_word if count == 1 else f"{kind_word} {i:02d}"
+                operations.append({
+                    "op": "add_node",
+                    "id": node_id,
+                    "value": {"id": node_id, "label": label, "kind": kind, "origin": "ai",
+                              "properties": {"deviceType": kind_word} if guessed or kind == "generic" else {}},
+                })
+                operations.append({
+                    "op": "add_edge",
+                    "id": f"link_{node_id}",
+                    "value": {"id": f"link_{node_id}", "source": target.id, "target": node_id,
+                              "kind": "physical", "direction": "undirected"},
+                })
+
+        # 2) remove node
+        for m in re.finditer(r"(?:删除|移除)\s*([^\s，,。；;]+)", text):
+            target = find_node(m.group(1))
+            operations.append({
+                "op": "remove_node",
+                "id": target.id,
+                "cascade": True,
+                "requiresConfirmation": True,
+            })
+
+        # 3) rename
+        for m in re.finditer(r"(?:把|将)?\s*([^\s，,。；;]+?)\s*(?:重命名|改名为|改名为|更名为)\s*(?:为|:|：)?\s*([^\s，,。；;]+)", text):
+            target = find_node(m.group(1))
+            operations.append({
+                "op": "update_node",
+                "id": target.id,
+                "changes": {"label": m.group(2)},
+            })
+
+        if not operations:
+            raise ApiException(
+                ErrorCode.LLM_INVALID_OUTPUT,
+                "mock patch generator could not map the instruction to operations "
+                "(supported: 新增N台设备并连接目标 / 删除目标 / 重命名目标为新名)",
+            )
+
+        return {
+            "baseVersion": base_version,
+            "operations": operations[:100],
+            "reason": f"mock propose_patch: {text[:200]}",
+            "warnings": warnings,
+        }
 
 
 # ---------------------------------------------------------------------------

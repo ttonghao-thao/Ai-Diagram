@@ -6,7 +6,7 @@ Success responses carry `requestId` and `data`; errors carry
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -79,11 +79,17 @@ HTTP_STATUS_BY_CODE = {
 
 
 class ApiException(Exception):
-    """Domain error carrying a stable machine-readable code."""
+    """Domain error carrying a stable machine-readable code.
 
-    def __init__(self, code: str, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    `details` must be a JSON object; a bare list (typically related ids) is
+    normalized to {"relatedIds": [...]} so every caller can pass either form.
+    """
+
+    def __init__(self, code: str, message: str, details: Optional[Union[Dict[str, Any], List[Any]]] = None) -> None:
         self.code = code
         self.message = message
+        if isinstance(details, list):
+            details = {"relatedIds": details}
         self.details = details or {}
         super().__init__(message)
 

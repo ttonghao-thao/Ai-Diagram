@@ -70,7 +70,7 @@ function ErrorBox({ err }: { err: ApiError | null }) {
 interface DiagramInfo { id: string; name: string; diagramType: string; currentVersion: number; updatedAt: string }
 
 export default function App() {
-  const [tab, setTab] = useState<'generate' | 'parse' | 'validate' | 'versions'>('generate');
+  const [tab, setTab] = useState<'generate' | 'parse' | 'validate' | 'versions' | 'import' | 'patch'>('generate');
   const [health, setHealth] = useState<{ rendererAvailable: boolean; llm: { enabled: boolean; provider: string | null } } | null>(null);
 
   const refreshHealth = useCallback(() => {
@@ -90,7 +90,8 @@ export default function App() {
         </span>
       </header>
       <nav>
-        {([['generate', '生成图纸'], ['parse', '文本解析'], ['validate', '校验 Graph'], ['versions', '图纸与版本']] as const).map(
+        {([['generate', '生成图纸'], ['parse', '文本解析'], ['validate', '校验 Graph'], ['versions', '图纸与版本'],
+          ['import', '导入回导'], ['patch', 'AI 修改']] as const).map(
           ([key, label]) => (
             <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
               {label}
@@ -103,6 +104,8 @@ export default function App() {
         {tab === 'parse' && <ParseTab />}
         {tab === 'validate' && <ValidateTab />}
         {tab === 'versions' && <VersionsTab />}
+        {tab === 'import' && <ImportTab />}
+        {tab === 'patch' && <PatchTab />}
       </main>
       <footer>Phase 1 · 图形精修请在 Windows draw.io Desktop 中完成；本工作台不含画布。</footer>
     </div>
@@ -251,6 +254,191 @@ function ValidateTab() {
           {result.ok ? '✓ 结构与语义校验通过' : '✗ 校验未通过'}
           <IssueList issues={result.errors ?? []} />
           <IssueList issues={[...(result.warnings ?? []), ...(result.documentWarnings ?? [])]} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+interface VersionInfo { version: number; parentVersion: number | null; origin: string; sha256: string; createdAt: string }
+
+function useDiagrams(errFn: (e: ApiError) => void) {
+  const [diagrams, setDiagrams] = useState<DiagramInfo[]>([]);
+  const refresh = useCallback(() => {
+    api.listDiagrams().then(({ data }) => setDiagrams((data as any).diagrams)).catch(errFn);
+  }, [errFn]);
+  useEffect(refresh, [refresh]);
+  return { diagrams, refresh };
+}
+
+function DiagramPicker({ diagrams, value, onChange }: { diagrams: DiagramInfo[]; value: string | null; onChange: (id: string) => void }) {
+  return (
+    <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+      <option value="" disabled>选择图纸…</option>
+      {diagrams.map((d) => (
+        <option key={d.id} value={d.id}>{d.id}（v{d.currentVersion}）</option>
+      ))}
+    </select>
+  );
+}
+
+function DiffSummary({ diff }: { diff: any }) {
+  const s = diff?.summary ?? {};
+  const entries = Object.entries(s).filter(([k]) => k !== 'total');
+  return (
+    <table>
+      <tbody>
+        <tr><th colSpan={2}>差异摘要（共 {s.total ?? 0} 项）</th></tr>
+        {entries.map(([k, v]) => (
+          <tr key={k}><td>{k}</td><td>{String(v)}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ImportTab() {
+  const setErrSafe = useCallback((e: ApiError) => setErr(e), []);
+  const { diagrams, refresh } = useDiagrams(setErrSafe);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<Record<string, any> | null>(null);
+  const [err, setErr] = useState<ApiError | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const current = diagrams.find((d) => d.id === selected);
+
+  const upload = async () => {
+    setErr(null); setMsg(null); setPreview(null);
+    if (!selected || !file || !current) {
+      setErr(new ApiError('LOCAL_INPUT', '请选择图纸和 .drawio 文件'));
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data } = await api.importPreview(selected, file, current.currentVersion);
+      setPreview(data);
+    } catch (e) {
+      setErr(e as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const commit = async () => {
+    if (!selected || !preview) return;
+    setBusy(true);
+    try {
+      const { data } = await api.importCommit(selected, preview.confirmationToken, current!.currentVersion);
+      setMsg(`已提交为 v${(data as any).version.version}（保留未知对象 ${data.preservedUnknownCells} 个）`);
+      setPreview(null);
+      refresh();
+    } catch (e) {
+      setErr(e as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h2>导入 Desktop 修改后的 .drawio（先预览差异，再确认提交）</h2>
+      <p className="hint">
+        在 Windows draw.io Desktop 中编辑保存后，把文件上传到这里。多页文件会被拒绝且不改动现有版本。
+      </p>
+      <p>
+        <DiagramPicker diagrams={diagrams} value={selected} onChange={(id) => { setSelected(id); setPreview(null); setMsg(null); }} />
+        <input type="file" accept=".drawio,application/xml,text/xml" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <button className="primary" disabled={busy || !selected || !file} onClick={upload}>
+          {busy ? '解析中…' : '上传并预览差异'}
+        </button>
+      </p>
+      <ErrorBox err={err} />
+      {msg && <div className="ok">{msg}</div>}
+      {preview && (
+        <div>
+          <DiffSummary diff={preview.diff} />
+          <IssueList issues={preview.warnings ?? []} />
+          {preview.requiresConfirmation ? (
+            <p className="hint">包含删除/重接线等高风险变更，请核对差异后再提交。</p>
+          ) : null}
+          <button className="primary" disabled={busy} onClick={commit}>
+            确认导入为新版本 v{preview.candidateVersion}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PatchTab() {
+  const setErrSafe = useCallback((e: ApiError) => setErr(e), []);
+  const { diagrams, refresh } = useDiagrams(setErrSafe);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [instruction, setInstruction] = useState('新增两台服务器并连接核心交换机');
+  const [preview, setPreview] = useState<Record<string, any> | null>(null);
+  const [err, setErr] = useState<ApiError | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const current = diagrams.find((d) => d.id === selected);
+
+  const runPreview = async () => {
+    setErr(null); setMsg(null); setPreview(null);
+    if (!selected || !current) return;
+    setBusy(true);
+    try {
+      const { data } = await api.patchPreview(selected, { instruction });
+      setPreview(data);
+    } catch (e) {
+      setErr(e as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const apply = async () => {
+    if (!selected || !preview || !current) return;
+    setBusy(true);
+    try {
+      const { data } = await api.patchApply(selected, preview.confirmationToken, current.currentVersion);
+      setMsg(`已应用并生成 v${(data as any).version.version}；受影响对象：${(data as any).impactedIds.join(', ')}`);
+      setPreview(null);
+      refresh();
+    } catch (e) {
+      setErr(e as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h2>AI 增量修改（指令 → Patch 预览 → 确认应用）</h2>
+      <p className="hint">
+        示例指令：新增两台服务器并连接核心交换机 / 删除服务器 02 / 重命名外部网络为互联网出口。手工移动过的对象不会被自动挪动。
+      </p>
+      <p>
+        <DiagramPicker diagrams={diagrams} value={selected} onChange={(id) => { setSelected(id); setPreview(null); setMsg(null); }} />
+      </p>
+      <textarea rows={2} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
+      <button className="primary" disabled={busy || !selected} onClick={runPreview}>
+        {busy ? '分析中…' : '预览 Patch'}
+      </button>
+      <ErrorBox err={err} />
+      {msg && <div className="ok">{msg}{'　'}<a href={api.exportUrl(selected!)} download>下载新版本</a></div>}
+      {preview && (
+        <div className={preview.requiresConfirmation ? 'error' : 'ok'}>
+          <div>
+            需要确认：<b>{String(preview.requiresConfirmation)}</b>
+            {preview.confirmationReasons?.length ? `（${preview.confirmationReasons.join('；')}）` : ''}
+          </div>
+          <div>受影响对象：{preview.impactedIds?.join(', ')}</div>
+          <IssueList issues={preview.warnings ?? []} />
+          <details>
+            <summary>布局计划与差异</summary>
+            <pre>{JSON.stringify({ layoutPlan: preview.layoutPlan, diff: preview.diff?.summary }, null, 2)}</pre>
+          </details>
+          <button className="primary" disabled={busy} onClick={apply}>确认应用</button>
         </div>
       )}
     </section>

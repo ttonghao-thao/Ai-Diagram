@@ -66,6 +66,30 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ baseVersion }),
     }),
+  importPreview: (id: string, file: File, baseVersion: number) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('baseVersion', String(baseVersion));
+    return request(`/api/v1/diagrams/${encodeURIComponent(id)}/import/drawio`, { method: 'POST', body: form });
+  },
+  importCommit: (id: string, token: string, baseVersion: number) =>
+    request(`/api/v1/diagrams/${encodeURIComponent(id)}/import/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmationToken: token, baseVersion }),
+    }),
+  patchPreview: (id: string, body: { instruction?: string; patch?: unknown }) =>
+    request(`/api/v1/diagrams/${encodeURIComponent(id)}/patch/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  patchApply: (id: string, token: string, baseVersion: number) =>
+    request(`/api/v1/diagrams/${encodeURIComponent(id)}/patch/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmationToken: token, baseVersion }),
+    }),
   exportUrl: (id: string, version?: number) =>
     `/api/v1/diagrams/${encodeURIComponent(id)}/export/drawio${version ? `?version=${version}` : ''}`,
 };
