@@ -44,9 +44,10 @@ python scripts/validate_fixtures.py
 
 上述检查仅验证 JSON、XML 的结构与引用关系，**不代表 Desktop 兼容性已通过**。
 
-## Phase 0 实现与运行命令（2026-11-21）
+## Phase 0 / 0.5 实现与运行命令（2026-11-21）
 
 确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
+Phase 0.5 追加了**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）。
 **Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)。
 
 ```bash
@@ -56,17 +57,19 @@ python3 scripts/validate_fixtures.py
 # 2) Renderer：Graph JSON -> ELK.js -> 可编辑 .drawio（无 LLM/网络/GPU 依赖）
 cd renderer
 npm install          # 首次；依赖精确锁定（elkjs 0.12.1 / fast-xml-parser 5.12.1 / typescript 5.9.3）
-npm test             # 构建 + 30 个自动化测试，并产出 out/network.drawio、out/business.drawio
-npm run generate:all # 仅生成两张交付图
+npm test             # 构建 + 45 个自动化测试，并产出 out/network.drawio、out/business.drawio
+npm run generate:all # 仅生成两张交付图（专业设备图标）
 node dist/src/cli.js generate --input ../fixtures/network.graph.json --output ../out/network.drawio
+node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icons-dir <自定义SVG目录>
 node dist/src/cli.js validate  --input ../out/network.drawio
 
 # 3) 图模型与语义校验（Pydantic v2）
 cd ../backend && python3 -m pytest   # 24 个测试（G-01~G-05 + 输出复验）
 ```
 
-新增实现目录：`backend/`（Pydantic 模型 + 语义校验）、`renderer/`（TypeScript 渲染器 CLI）、
-`out/`（本阶段两张交付图）、`deploy/env.example`（Phase 1 配置预留）；`frontend/` 为 Phase 1 占位。
+新增实现目录：`backend/`（Pydantic 模型 + 语义校验）、`renderer/`（TypeScript 渲染器 CLI + 图标注册表 +
+`assets/icons/` 自定义 SVG 目录）、`out/`（本阶段两张交付图）、`deploy/env.example`（Phase 1 配置预留）；
+`frontend/` 为 Phase 1 占位。
 
 ## 文件目录
 

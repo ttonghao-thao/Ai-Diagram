@@ -196,3 +196,69 @@ draw.io Desktop 版本：
 - Phase 1（等待 Windows 闸门反馈后开始）：FastAPI（/api/v1 全套）、SQLite+文件版本快照、最小 React 台、LLM adapter（mock + OpenAI-compatible）、A-01~A-03/V-01~V-03 测试。
 - Phase 2 入口依赖本阶段产物：`out/*.drawio` 的结构、cell id 映射（n_/g_/e_）与未压缩格式即回导解析器的输入契约。
 - 建议改进（不阻塞）：把 `renderer validate` 升级为可校验"任意系统生成文件"（含 manifest 对比）；为 ELK 增加 `elk.layered.considerModelOrder` 调参以减少边交叉。
+
+## 8. Phase 0.5：专业设备图标支持（2026-11-21 追加交付）
+
+> 状态：**自动化测试全部通过 + 渲染复现已完成；Windows Desktop 人工闸门仍为 BLOCKED（与 Phase 0 闸门一并验证）**。
+> 未重构 Phase 0 架构：Graph JSON、ELK.js 布局管线与 XML 序列化结构不变，Icon Registry 为纯增量模块。
+
+### 8.1 实现内容
+
+| 要求 | 实现 |
+|---|---|
+| Icon Registry | `renderer/src/shapes/iconRegistry.ts`：NodeKind → 图标描述（stencil 样式 / 兜底样式 / 默认尺寸 / 来源） |
+| 优先原生形状与专业 stencil | 8 类设备全部映射到 draw.io 内置 `mxgraph.networks` stencil（Desktop 自带，无外链），`service` 用核心库 `shape=process`，`generic` 用中性平面设备盒 |
+| 自定义 SVG、零在线加载 | 本地目录 `renderer/assets/icons/<名称>.svg`（kind 或 deviceType 别名）或节点级 `style.icon`；内嵌为 style 中的 data URI，无任何运行时网络请求；≤64KB、拒绝 `<script>`/`javascript:` |
+| 布局考虑图标尺寸/设备名称/端口 | ELK 节点盒 = 图标盒 + 24px 标签带（标签画在图标下方 `verticalLabelPosition=bottom`）；无 geometry 时按 registry 默认尺寸并按设备名宽度加宽；连线按布局几何计算**固定方向锚点**（exitX/exitY/entryX/entryY，指向目标一侧），连接端点显式可控；Graph JSON 中的 sourcePort/targetPort 仍不映射为固定坐标（不编造端口，见 §4 D-P0-9） |
+| 无法识别设备类型 | kind=`generic` → 通用设备盒图标；`properties.deviceType` 原值保留在 style 中（`aiDeviceType=<原值>`），同时每个节点写入 `aiKind=<kind>`，便于 Desktop 样式面板查看与 Phase 2 差异识别；deviceType 若恰与 registry 键同名则升级为对应专业图标 |
+| 不重构 | Graph JSON schema 零改动；ELK 管线只换尺寸来源函数；XML 结构（mxfile/mxGraphModel/swimlane 组/边 parent=1）不变 |
+
+### 8.2 Stencil 名称的权威验证（不凭记忆）
+
+形状标识符取自 drawio v24.7.17 源码（jsdelivr CDN 可达，GitHub 直连超时）：
+
+- `stencils/networks.xml`（57 个形状）含 "Switch"、"Router"、"Firewall"、"Server"、"Virtual Server"、"Storage"、"Cloud"、"Terminal" 等；
+- `mxStencilRegistry.parseStencilSet`（viewer.min.js）：注册名 = `packageName + "." + name.toLowerCase().replace(/ /g, "_")`；
+- 最终映射：switch→`mxgraph.networks.switch`、router→`.router`、firewall→`.firewall`、server→`.server`、vm→`.virtual_server`（备选 Virtual PC，选 Virtual Server 因其更贴近主机虚拟化）、database→`.storage`、cloud→`.cloud`、client→`.terminal`。
+
+### 8.3 渲染复现与一个关键根因修复
+
+用在线 viewer.diagrams.net（纯客户端渲染，内容为虚构样例）对生成文件做了可视化复现：
+
+1. `mxgraph.networks` stencil 全部正确渲染：云朵、砖墙火焰防火墙、交换机机箱、机架服务器；标签在图标下方；组与正交连线正常。
+2. **发现并修复**：自定义 SVG 以 base64 data URI 嵌入时图标**空白**。根因（有源码证据）：draw.io 的 style 字符串解析按 `;` 切分（`mxGraph.getCellStyle`），`...;base64,xxx` 中的分号把样式值截断为 `data:image/svg+xml`（复现：渲染出的 `<image>` href 恰为 18 字符）。修复：`svgImageStyle` 改用 draw.io 自家图片管线偏好的**百分号编码**形式 `data:image/svg+xml,%3Csvg...`（不含 `;`，`postProcessCellStyle` 有对应分支）；`node.style.icon` 的 base64 输入会被规范化为该形式。复现修复后打印机 SVG 图标正常渲染。
+3. 防御性收紧：`svgImageStyle` 现在拒绝 base64/非 SVG 的 image 值并给出解释性错误。
+
+### 8.4 实际执行的测试
+
+```bash
+cd renderer && npm test          # 45/45 通过（较 Phase 0 新增 15 个 iconRegistry 测试）
+cd backend && python3 -m pytest  # 24/24 通过（对重新生成的 out/*.drawio 复验）
+npm run generate:all             # 两张交付图以专业图标重新生成
+```
+
+新增测试覆盖：registry 全 kind 覆盖与尺寸正值；8 类 stencil 标识符与权威名称一致；sanitize 规则（保留中文设备名）；generic+deviceType 保留原类型；deviceType 别名升级图标；自定义 SVG 目录加载/内嵌（断言 `data:image/svg+xml,` 形式且**不含 `;base64,`**）；恶意 SVG（script/javascript:/非 SVG/超 64KB）拒绝；标签带预留（layered 下几何高度=图标高度）；生成的 XML 含 aiKind/aiDeviceType/固定锚点且可回读。
+
+### 8.5 交付物（已更新，SHA-256 覆盖 §3.1 旧值）
+
+```text
+7e6031f886595535015912e99989bbe2c6e28e9dcec98dcf475e584f75fbb9e2  out/network.drawio
+5980068c5c7cec317e8a31167987e1ca0f106d3f07949113bccd09f1fe8b0e2c  out/business.drawio
+```
+
+### 8.6 决策记录（Phase 0.5 追加）
+
+| # | 决策 | 说明 |
+|---|---|---|
+| D-P05-1 | 自定义 SVG 嵌入统一为百分号编码 data URI | §8.3 根因；base64 形式会被 style 解析截断 |
+| D-P05-2 | 所有节点标签画在图标下方，ELK 高度加 24px 标签带 | 统一美学与布局预留；标签带不写入 XML 几何（仅布局内部） |
+| D-P05-3 | 边使用固定方向锚点（按布局几何推导），不再完全浮动 | 满足"考虑连接端口"且首版路由更可预期；Phase 2 如需用户级端口映射另行设计 |
+| D-P05-4 | `aiKind`/`aiDeviceType` 写入 style 字符串 | 保留原始设备类型信息、辅助 Phase 2 差异；为自管命名空间，值经 sanitize（`;=` 与控制符替换） |
+| D-P05-5 | vm 映射 `virtual_server` 而非 `virtual_pc` | 语义接近服务器虚拟化；可在 registry 一行调整 |
+
+### 8.7 Windows 手工验收增补项（并入 §5 步骤执行）
+
+- [ ] network.drawio：云=云朵、防火墙=砖墙火焰、核心交换机=机箱面板、三台服务器=机架服务器图标；图标可**拖动/缩放**（Ctrl+滚轮或右键编辑尺寸）；连线仍正确吸附图标轮廓。
+- [ ] business.drawio：数据库=存储阵列图标、终端=终端设备图标、服务=流程框；组容器拖动时组内图标随动。
+- [ ] 任一节点 Edit Style 中可见 `aiKind=...`（generic 节点还有 `aiDeviceType=...`）。
+- [ ] 修改图标尺寸后保存再打开，形状不变形、标签不丢。

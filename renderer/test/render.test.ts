@@ -135,11 +135,18 @@ test('kind styles and physical undirected edges are reflected in the XML', async
   const { doc, xml } = await renderToFile('network.graph.json', 'network-check-style.drawio');
   const parsed = parseDrawioXml(xml);
   const fw = parsed.cellById.get(nodeCellId('firewall'));
-  assert.ok(fw?.style?.includes('fillColor=#F8CECC'));
+  assert.ok(fw?.style?.includes('shape=mxgraph.networks.firewall'));
+  assert.ok(fw?.style?.includes('aiKind=firewall'));
   const cloud = parsed.cellById.get(nodeCellId('wan'));
-  assert.ok(cloud?.style?.includes('ellipse'));
+  assert.ok(cloud?.style?.includes('shape=mxgraph.networks.cloud'));
+  const server = parsed.cellById.get(nodeCellId('server_01'));
+  assert.ok(server?.style?.includes('shape=mxgraph.networks.server'));
   const phys = parsed.cellById.get(edgeCellId('wan_to_fw'));
   assert.ok(phys?.style?.includes('endArrow=none'));
+  // Vertical top-down layout: fixed directional anchors leave the source at
+  // its bottom edge and enter the target at its top edge.
+  assert.ok(phys?.style?.includes('exitX=0.5;exitY=1'));
+  assert.ok(phys?.style?.includes('entryX=0.5;entryY=0'));
   assert.equal(doc.nodes.length, 6);
   // Style assertions are done in memory; remove the scratch file.
   rmSync(path.join(OUT_DIR, 'network-check-style.drawio'), { force: true });

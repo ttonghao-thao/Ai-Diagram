@@ -3,7 +3,8 @@
  * docs/03 section 3: stable cell ids, real vertex/edge/group cells, correct
  * parent-child and source/target references, XML escaping for all text.
  */
-import { composeEdgeStyle, composeStyle, GROUP_STYLE, NODE_STYLES } from '../shapes/styles.js';
+import { composeEdgeStyle, composeStyle, GROUP_STYLE } from '../shapes/styles.js';
+import { resolveNodeIcon } from '../shapes/iconRegistry.js';
 import { edgeCellId, groupCellId, nodeCellId } from '../types.js';
 import type { Geometry, GraphDocument, GraphGroup, GraphNode, StyleMap } from '../types.js';
 import type { LayoutOutput } from '../layout/elkLayout.js';
@@ -70,12 +71,43 @@ function geometryLines(cellId: string, geo: Geometry | undefined, parentAbs: Geo
   );
 }
 
+export interface SerializeOptions {
+  /** Custom SVG icons (name -> base64 data URI), loaded from a local dir. */
+  customIcons?: ReadonlyMap<string, string>;
+}
+
+/**
+ * Fixed directional connection anchors computed from the layout: the edge
+ * leaves the source side facing the target and enters the target side facing
+ * the source (drawio exitX/exitY, entryX/entryY). Returns '' when centers
+ * coincide so drawio keeps floating anchors.
+ */
+export function edgeAnchorStyle(layout: LayoutOutput, sourceCellId: string, targetCellId: string): string {
+  const s = layout.geometries.get(sourceCellId);
+  const t = layout.geometries.get(targetCellId);
+  if (!s || !t) return '';
+  const dx = t.x + t.width / 2 - (s.x + s.width / 2);
+  const dy = t.y + t.height / 2 - (s.y + s.height / 2);
+  if (dx === 0 && dy === 0) return '';
+  let exit: [number, number];
+  let entry: [number, number];
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 0) { exit = [1, 0.5]; entry = [0, 0.5]; } else { exit = [0, 0.5]; entry = [1, 0.5]; }
+  } else {
+    if (dy > 0) { exit = [0.5, 1]; entry = [0.5, 0]; } else { exit = [0.5, 0]; entry = [0.5, 1]; }
+  }
+  return (
+    `exitX=${exit[0]};exitY=${exit[1]};exitDx=0;exitDy=0;` +
+    `entryX=${entry[0]};entryY=${entry[1]};entryDx=0;entryDy=0;`
+  );
+}
+
 /**
  * Serialize the laid-out graph into draw.io XML. `layout.geometries` holds
  * absolute coordinates; cells nested in a group are converted to coordinates
  * relative to their parent group (docs/03 section 2).
  */
-export function serializeDrawio(doc: GraphDocument, layout: LayoutOutput): string {
+export function serializeDrawio(doc: GraphDocument, layout: LayoutOutput, options: SerializeOptions = {}): string {
   const tree = buildTree(doc);
   const lines: string[] = [];
 
@@ -101,20 +133,23 @@ export function serializeDrawio(doc: GraphDocument, layout: LayoutOutput): strin
     lines.push('        </mxCell>');
   }
 
-  // Nodes: geometry converted from absolute to parent-group-relative.
+  // Nodes: icon resolved via the Icon Registry (stencil / custom SVG /
+  // generic fallback); geometry converted from absolute to group-relative.
   for (const { node, parentCellId } of tree.nodes) {
     const geo = layout.geometries.get(nodeCellId(node.id));
     if (!geo) continue;
     const parentAbs = node.groupId ? layout.geometries.get(groupCellId(node.groupId)) : undefined;
-    const style = composeStyle(NODE_STYLES[node.kind], node.style as StyleMap | undefined);
-    lines.push(`        <mxCell id="${nodeCellId(node.id)}"${attr('value', node.label)} style="${escapeXml(style)}" vertex="1" parent="${parentCellId}">`);
+    const icon = resolveNodeIcon(node, options.customIcons);
+    lines.push(`        <mxCell id="${nodeCellId(node.id)}"${attr('value', node.label)} style="${escapeXml(icon.style)}" vertex="1" parent="${parentCellId}">`);
     lines.push(geometryLines(nodeCellId(node.id), geo, parentAbs, '          '));
     lines.push('        </mxCell>');
   }
 
-  // Edges: always parented to the root layer; waypoints are absolute points.
+  // Edges: always parented to the root layer; waypoints are absolute points;
+  // fixed directional anchors are derived from the layout geometry.
   for (const edge of doc.edges) {
-    const style = composeEdgeStyle(edge.kind, edge.direction, edge.style as StyleMap | undefined);
+    const anchors = edgeAnchorStyle(layout, nodeCellId(edge.source), nodeCellId(edge.target));
+    const style = composeEdgeStyle(edge.kind, edge.direction, edge.style as StyleMap | undefined) + anchors;
     const waypoints = layout.edgeWaypoints.get(edgeCellId(edge.id)) ?? [];
     lines.push(
       `        <mxCell id="${edgeCellId(edge.id)}"${attr('value', edge.label ?? '')} style="${escapeXml(style)}" edge="1" parent="1" source="${nodeCellId(edge.source)}" target="${nodeCellId(edge.target)}">`,

@@ -6,12 +6,13 @@
  *
  * Exit codes: 0 = success, 1 = validation/content errors, 2 = usage/IO/internal errors.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { GraphValidationError, RenderError, type ValidationIssue } from './errors.js';
 import { layoutGraph } from './layout/elkLayout.js';
 import { serializeDrawio } from './drawio/xmlWriter.js';
 import { parseDrawioXml, validateStructure } from './drawio/xmlReader.js';
+import { loadCustomIcons } from './shapes/iconRegistry.js';
 import { validateGraph } from './validate.js';
 
 function printIssues(issues: ValidationIssue[]): void {
@@ -38,14 +39,26 @@ function argValue(args: string[], flag: string, command: string): string {
   return args[idx + 1];
 }
 
+function optionalArgValue(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  if (idx < 0) return undefined;
+  if (idx + 1 >= args.length) {
+    throw new RenderError('USAGE', `${flag} requires a directory path`);
+  }
+  return args[idx + 1];
+}
+
 async function cmdGenerate(args: string[]): Promise<number> {
   const input = argValue(args, '--input', 'generate');
   const output = argValue(args, '--output', 'generate');
+  const iconsDir = optionalArgValue(args, '--icons-dir') ??
+    path.resolve(__dirname, '..', '..', 'assets', 'icons');
+  const customIcons = existsSync(iconsDir) ? loadCustomIcons(iconsDir) : new Map();
   const started = Date.now();
   const raw = readJsonFile(input);
   const { doc, warnings } = validateGraph(raw);
   const layout = await layoutGraph(doc);
-  const xml = serializeDrawio(doc, layout);
+  const xml = serializeDrawio(doc, layout, { customIcons });
   mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   writeFileSync(output, xml, 'utf8');
   const vertexCount = layout.geometries.size;
@@ -54,8 +67,9 @@ async function cmdGenerate(args: string[]): Promise<number> {
   for (const w of warnings) {
     console.error(`WARNING ${w.code}: ${w.message}`);
   }
+  const iconNote = customIcons.size ? `, ${customIcons.size} custom icon(s)` : '';
   console.log(
-    `OK generated ${output} (diagram "${doc.name}"): ${vertexCount} cells, ${edges} edges, page ${layout.pageWidth}x${layout.pageHeight}, ${ms}ms`,
+    `OK generated ${output} (diagram "${doc.name}"): ${vertexCount} cells, ${edges} edges, page ${layout.pageWidth}x${layout.pageHeight}, ${ms}ms${iconNote}`,
   );
   return 0;
 }
@@ -82,8 +96,12 @@ function printUsage(): void {
   console.log(`Usage: node dist/src/cli.js <command> [options]
 
 Commands:
-  generate --input <graph.json> --output <file.drawio>   Validate graph, run ELK layout, write draw.io XML
-  validate  --input <file.drawio>                        Structural validation of an uncompressed draw.io file
+  generate --input <graph.json> --output <file.drawio> [--icons-dir <dir>]   Validate graph, run ELK layout, write draw.io XML
+  validate  --input <file.drawio>                                            Structural validation of an uncompressed draw.io file
+
+Options:
+  --icons-dir <dir>   Local directory of custom SVG icons (<kind>.svg / <deviceType>.svg),
+                      embedded as base64 data URIs (no online loading). Default: assets/icons.
 
 Exit codes: 0 success, 1 validation/content errors, 2 usage/IO errors.`);
 }

@@ -6,7 +6,7 @@
  */
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { ErrorCodes, RenderError } from '../errors.js';
-import { estimateNodeSize } from '../shapes/styles.js';
+import { LABEL_BAND_HEIGHT, resolveNodeSize } from '../shapes/iconRegistry.js';
 import { groupCellId, nodeCellId, edgeCellId } from '../types.js';
 import type { Geometry, GraphDocument, GraphGroup, GraphNode, Point } from '../types.js';
 
@@ -79,11 +79,10 @@ function indexGraph(doc: GraphDocument): GraphIndex {
   return { nodesById, groupsById, nodesByGroup, groupsByParent };
 }
 
-function leafSize(node: GraphNode): { width: number; height: number } {
-  if (node.geometry && node.geometry.width > 0 && node.geometry.height > 0) {
-    return { width: node.geometry.width, height: node.geometry.height };
-  }
-  return estimateNodeSize(node);
+/** ELK box = icon box + label band (labels render below icons; docs Phase 0.5). */
+function leafElkSize(node: GraphNode): { width: number; height: number } {
+  const size = resolveNodeSize(node);
+  return { width: size.width, height: size.height + LABEL_BAND_HEIGHT };
 }
 
 function buildElkTree(index: GraphIndex, doc: GraphDocument): ElkNode {
@@ -96,7 +95,7 @@ function buildElkTree(index: GraphIndex, doc: GraphDocument): ElkNode {
     ],
   });
   const buildLeaf = (node: GraphNode): ElkNode => {
-    const size = leafSize(node);
+    const size = leafElkSize(node);
     return { id: nodeCellId(node.id), width: size.width, height: size.height };
   };
   return {
@@ -147,11 +146,17 @@ function collectElkResults(result: ElkNode): {
     for (const child of container.children ?? []) {
       const ax = ox + (child.x ?? 0);
       const ay = oy + (child.y ?? 0);
+      // Leaf node boxes were inflated by the label band for layout; the
+      // recorded geometry is the icon box (labels live outside the shape).
+      const isLeaf = child.id.startsWith('n_');
+      const height = isLeaf
+        ? Math.max((child.height ?? 0) - LABEL_BAND_HEIGHT, 1)
+        : (child.height ?? 0);
       geometries.set(child.id, {
         x: round2(ax),
         y: round2(ay),
         width: round2(child.width ?? 0),
-        height: round2(child.height ?? 0),
+        height: round2(height),
       });
       walk(child, ax, ay);
       for (const e of child.edges ?? []) collectEdge(e, ax, ay);
@@ -225,7 +230,7 @@ function layoutManual(doc: GraphDocument, index: GraphIndex): Map<string, Geomet
     const maxY = Math.max(0, ...[...geometries.values()].map((m) => m.y + m.height));
     const perRow = 4;
     missing.forEach((n, i) => {
-      const size = leafSize(n);
+      const size = resolveNodeSize(n);
       const row = Math.floor(i / perRow);
       const col = i % perRow;
       geometries.set(nodeCellId(n.id), {
