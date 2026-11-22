@@ -173,15 +173,29 @@ async def import_commit(request: Request, diagram_id: str, body: Dict[str, Any])
             ErrorCode.VERSION_CONFLICT,
             f"diagram moved since preview (current v{diagram.current_version if diagram else 'gone'})",
         )
+    # Normalize compressed Desktop saves to uncompressed single-page XML so
+    # subsequent AI patch application is never refused on encoding grounds.
+    # The semantic content is identical; only the page encoding changes.
+    from app.importer.xml_parser import normalize_to_uncompressed
+
+    stored_xml, was_compressed = normalize_to_uncompressed(
+        entry["uploadedXml"],
+        max_cells=state.settings.max_xml_cells,
+        max_bytes=state.settings.max_drawio_upload_bytes,
+    )
     row = state.version_store.commit_new_version(
         diagram_id=diagram_id,
         diagram_name=diagram.name,
         diagram_type=diagram.diagram_type,
         graph=entry["graph"],
-        drawio_bytes=entry["uploadedXml"],
+        drawio_bytes=stored_xml,
         origin="desktop_import",
         expected_base_version=base_version,
-        manifest_extra={"cellMapping": entry["cellMapping"], "unknownCellCount": entry["unknownCellCount"]},
+        manifest_extra={
+            "cellMapping": entry["cellMapping"],
+            "unknownCellCount": entry["unknownCellCount"],
+            "normalizedFromCompressed": was_compressed,
+        },
     )
     return ok(request, {
         "version": {
@@ -189,4 +203,5 @@ async def import_commit(request: Request, diagram_id: str, body: Dict[str, Any])
             "sha256": row.sha256, "createdAt": row.created_at,
         },
         "preservedUnknownCells": entry["unknownCellCount"],
+        "normalizedFromCompressed": was_compressed,
     })

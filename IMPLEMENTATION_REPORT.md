@@ -377,7 +377,44 @@ cd renderer && npm test              # 45/45（未受影响）
 ### 10.5 Phase 2 已知限制
 
 1. **真实 Windows Desktop 上传回导未执行**（闸门 BLOCKED 继承）；自动化以模拟桌面修改的 XML 覆盖。
-2. 导入不支持多页（显式拒绝）；压缩页可读但**Patch 应用对压缩存储页显式拒绝**（先回导一次即转为未压缩）。
+2. ~~压缩页 Patch 拒绝~~ 已在评审修复（§11 P0-1）中解决：导入提交时压缩页规范化为未压缩入库。导入仍不支持多页（显式拒绝）。
 3. 令牌存内存：重启服务后未消费的预览令牌失效（客户端需重新预览）。
 4. `renderer validate` 未接入导入流程的结构预检（导入走 Python 解析器自校验，二者规则一致但实现独立）。
 5. Diff 为字段级摘要，不含样式级细粒度（style 变更未逐键对比）。
+
+## 11. 评审修复（Phase 2.1，2026-11-22）
+
+对项目目标与实现进行全面评审后，修复了三个 P0 级正确性缺陷（均为"语义图 ↔ 图形层"双向保真问题）。修复前后的行为对照与证据：
+
+### 11.1 P0-1：压缩页回导后 AI 修改被永久卡死
+
+- **原缺陷**：导入提交将上传 XML 原样入库，若 Desktop 保存出压缩页，后续所有 Patch 应用因"压缩页不支持编辑"被拒绝，用户无出路。
+- **修复**：导入提交时经 `normalize_to_uncompressed`（xml_parser.py）把压缩页解码为未压缩单页入库（语义不变，仅编码规范化），manifest 记录 `normalizedFromCompressed`；commit 响应新增该字段。
+- **测试**：I-02 改写——压缩回导后断言入库为未压缩，并**在其上继续完成一次 Patch 应用**（闭合卡死链路）。
+
+### 11.2 P0-2：`update_edge` 改类型后 XML 样式不同步
+
+- **原缺陷**：patch 允许改边的 kind/direction（语义层更新），但 XML 定向编辑不重写 style，下载图纸的箭头/虚线仍是旧类型。
+- **修复**：xml_edit.py 的 update_edge 在 kind/direction 变化时按模板重建样式（含 `aiKind/aiDirection` 标记与锚点）；**仅端点变化**时只刷新 exitX/entryX 等锚点键、保留用户其余样式。
+- **测试**：P-03 扩展（物理→dataflow：断言 `endArrow=block`、`strokeColor=#4A7E53`、标记更新）；新增"纯端点变更保留样式、锚点仍在"用例。
+
+### 11.3 P0-3：边类型回导静默退化
+
+- **原缺陷**：renderer 不在边样式上写语义标记，回导走箭头启发式，logical/control/dependency 全部退化为 dataflow，且 diff 不比较边类型 → 类型丢失既发生又不可见。
+- **修复**：① renderer `composeEdgeStyle` 为每条边写入 `aiKind=<kind>;aiDirection=<direction>`；② 导入侧优先读取这两个标记（箭头启发式仅作为 Desktop 手绘边的回退，报告中声明其局限）；③ `diff_graphs` 新增 `edgeKindChanged`/`edgeDirectionChanged` 并计入 summary。
+- **测试**：业务图 fixture 回导 diff=0 且四种边 kind/direction 逐项保留；"Desktop 手绘箭头（无标记）"场景的启发式回退结果以 `edgeKindChanged` 显式上报。
+
+### 11.4 交付物与测试
+
+`out/*.drawio` 已用修复后 renderer 重新生成（边样式新增语义标记，SHA-256 取代 §8.5 旧值）：
+
+```text
+3d25698b562f2dc996238876f722f0ec0520901e408232499e180ee9b27c394e  out/network.drawio
+ee97759678844175bd499ae2d67d375ffae055480f041683bb21cbdb58d06b99  out/business.drawio
+```
+
+回归：backend **79 passed**（+3：业务往返、端点变更锚点、启发式 diff 检测）；renderer **45/45**（含新断言）；`validate_fixtures.py` PASS。
+
+### 11.5 评审中确认、本次未修（待排期）
+
+按优先级：上传先读后限（内存 DoS 面）→ DOCTYPE 全文扫描 → 流式下载 → 版本回滚端点 → 导入后自动锁定策略声明 → 重复实现对照测试 → frontend lockfile/npm ci → 前端自动化。详见评审记录。

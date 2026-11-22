@@ -63,7 +63,11 @@ export function composeStyle(base: string, overrides?: StyleMap): string {
 
 /**
  * Physical edges are rendered without any arrow regardless of the declared
- * direction; other kinds get arrows according to their direction.
+ * direction; other kinds get arrows according to their direction. The
+ * semantic markers `aiKind`/`aiDirection` are stamped onto every edge so the
+ * Phase 2 importer can restore the exact edge type after a Desktop edit
+ * round-trip (arrow-based heuristics cannot distinguish logical/control/
+ * dependency edges).
  */
 export function composeEdgeStyle(kind: EdgeKind, direction: EdgeDirection, overrides?: StyleMap): string {
   const parts: string[] = [composeStyle(EDGE_STYLES[kind], overrides)];
@@ -76,6 +80,7 @@ export function composeEdgeStyle(kind: EdgeKind, direction: EdgeDirection, overr
   } else {
     parts.push('startArrow=none;startFill=0;endArrow=none;endFill=0;');
   }
+  parts.push(`aiKind=${kind};aiDirection=${direction};`);
   return parts.join('');
 }
 

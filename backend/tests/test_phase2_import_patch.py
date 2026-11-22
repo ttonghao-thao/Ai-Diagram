@@ -135,9 +135,23 @@ def test_i02_compressed_desktop_xml_import(app_client) -> None:
     commit = client.post("/api/v1/diagrams/sample_network/import/commit",
                          json={"confirmationToken": data["confirmationToken"], "baseVersion": 1})
     assert commit.status_code == 200
-    # Stored verbatim (still compressed), and the derived graph is correct.
+    assert commit.json()["data"]["normalizedFromCompressed"] is True
+    # The stored page is normalized to uncompressed single-page XML so later
+    # AI patches are never refused on encoding grounds (P0-1 fix).
     stored = client.get("/api/v1/diagrams/sample_network/export/drawio?version=2").content
-    assert stored == compressed_file
+    assert b"<mxGraphModel" in stored
+
+    # Dead-end closed: an AI patch applies cleanly on top of the normalized version.
+    patch = {
+        "baseVersion": 2,
+        "operations": [{"op": "update_node", "id": "core_switch", "changes": {"label": "核心交换机（改）"}}],
+    }
+    preview = client.post("/api/v1/diagrams/sample_network/patch/preview", json={"patch": patch})
+    assert preview.status_code == 200, preview.text
+    apply = client.post("/api/v1/diagrams/sample_network/patch/apply", json={
+        "confirmationToken": preview.json()["data"]["confirmationToken"], "baseVersion": 2,
+    })
+    assert apply.status_code == 200, apply.text
 
 
 def test_i03_unknown_custom_cell_preserved(app_client) -> None:
@@ -383,7 +397,7 @@ def test_p03_edge_reconnection_requires_confirmation(app_client) -> None:
     patch = {
         "baseVersion": 1,
         "operations": [{"op": "update_edge", "id": "core_to_s3",
-                        "changes": {"target": "server_01"}}],
+                        "changes": {"target": "server_01", "kind": "dataflow", "direction": "forward"}}],
     }
     preview = client.post("/api/v1/diagrams/sample_network/patch/preview", json={"patch": patch})
     assert preview.status_code == 422
@@ -392,7 +406,10 @@ def test_p03_edge_reconnection_requires_confirmation(app_client) -> None:
     patch["operations"][0]["requiresConfirmation"] = True
     preview = client.post("/api/v1/diagrams/sample_network/patch/preview", json={"patch": patch})
     assert preview.status_code == 200
-    assert preview.json()["data"]["diff"]["summary"]["edgeReconnected"] == 1
+    summary = preview.json()["data"]["diff"]["summary"]
+    assert summary["edgeReconnected"] == 1
+    assert summary["edgeKindChanged"] == 1
+    assert summary["edgeDirectionChanged"] == 1
     apply = client.post("/api/v1/diagrams/sample_network/patch/apply", json={
         "confirmationToken": preview.json()["data"]["confirmationToken"], "baseVersion": 1,
     })
@@ -401,6 +418,36 @@ def test_p03_edge_reconnection_requires_confirmation(app_client) -> None:
     root = ET.fromstring(xml).find("diagram/mxGraphModel/root")
     cell = next(c for c in root.findall("mxCell") if c.get("id") == "e_core_to_s3")
     assert cell.get("target") == "n_server_01"
+    # Kind/direction change rebuilds the visual style (P0-2 fix): dataflow
+    # arrows/colors replace the physical no-arrow style, markers updated.
+    style = cell.get("style")
+    assert "endArrow=block" in style and "startArrow=none" in style
+    assert "strokeColor=#4A7E53" in style
+    assert "aiKind=dataflow;aiDirection=forward" in style
+
+
+def test_p03_endpoint_only_change_refreshes_anchors_keeps_style(app_client) -> None:
+    """Pure reconnect keeps the user style and only refreshes anchor keys."""
+    client, _ = app_client
+    _create(client)
+    patch = {
+        "baseVersion": 1,
+        "operations": [{"op": "update_edge", "id": "core_to_s1",
+                        "changes": {"target": "server_03"}, "requiresConfirmation": True}],
+    }
+    preview = client.post("/api/v1/diagrams/sample_network/patch/preview", json={"patch": patch})
+    assert preview.status_code == 200, preview.text
+    apply = client.post("/api/v1/diagrams/sample_network/patch/apply", json={
+        "confirmationToken": preview.json()["data"]["confirmationToken"], "baseVersion": 1,
+    })
+    assert apply.status_code == 200
+    xml = client.get("/api/v1/diagrams/sample_network/export/drawio?version=2").content
+    root = ET.fromstring(xml).find("diagram/mxGraphModel/root")
+    cell = next(c for c in root.findall("mxCell") if c.get("id") == "e_core_to_s1")
+    style = cell.get("style")
+    assert cell.get("target") == "n_server_03"
+    assert "aiKind=physical" in style  # kind untouched -> no restyle
+    assert "exitX=" in style and "entryY=" in style  # anchors still present
 
 
 def test_p04_locked_object_cannot_be_moved(app_client) -> None:
@@ -542,3 +589,61 @@ def test_patch_preview_unknown_instruction_target(app_client, monkeypatch) -> No
     })
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == ErrorCode.AMBIGUOUS_RELATION
+
+
+def test_business_edge_kinds_survive_roundtrip(app_client) -> None:
+    """P0-3 fix: logical/dataflow edges keep their exact kind/direction after a
+    Desktop round-trip (renderer stamps aiKind/aiDirection on every edge)."""
+    client, _ = app_client
+    assert client.post("/api/v1/diagrams", json=load_fixture("business.graph.json")).status_code == 200
+    xml = client.get("/api/v1/diagrams/sample_business/export/drawio?version=1").content
+    preview = client.post(
+        "/api/v1/diagrams/sample_business/import/drawio",
+        files={"file": ("b.drawio", xml, "application/xml")},
+        data={"baseVersion": 1},
+    )
+    assert preview.status_code == 200, preview.text
+    data = preview.json()["data"]
+    assert data["diff"]["summary"]["total"] == 0  # no edgeKindChanged, no drift
+
+    commit = client.post("/api/v1/diagrams/sample_business/import/commit",
+                         json={"confirmationToken": data["confirmationToken"], "baseVersion": 1})
+    assert commit.status_code == 200
+    graph = client.get("/api/v1/diagrams/sample_business?version=2").json()["data"]["graph"]
+    kinds = {e["id"]: e["kind"] for e in graph["edges"]}
+    assert kinds == {
+        "partner_gateway": "logical",
+        "gateway_content": "dataflow",
+        "content_db": "dataflow",
+        "client_gateway": "logical",
+    }
+    dirs = {e["id"]: e["direction"] for e in graph["edges"]}
+    assert dirs["content_db"] == "bidirectional"
+    assert dirs["partner_gateway"] == "forward"
+
+
+def test_desktop_arrow_change_reported_as_kind_change(app_client) -> None:
+    """An edge whose arrows were edited directly in Desktop (no aiKind) falls
+    back to arrow heuristics AND the resulting kind change is reported in the
+    diff instead of silently overwriting the graph."""
+    client, _ = app_client
+    _create(client)
+    xml = _rendered_xml(client).decode("utf-8")
+    # Strip the semantic marker and draw an arrow, as a Desktop user would.
+    edited = xml.replace(
+        "startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;",
+        "endArrow=block;endFill=1;",
+    )
+    assert edited != xml  # exactly one physical edge style was present per edge
+    resp = client.post(
+        "/api/v1/diagrams/sample_network/import/drawio",
+        files={"file": ("edited.drawio", edited.encode("utf-8"), "application/xml")},
+        data={"baseVersion": 1},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    # The 5 physical edges all became heuristic dataflow edges...
+    assert data["diff"]["summary"]["edgeKindChanged"] == 5
+    # ...and the change is explicitly visible instead of silent.
+    kinds_to = {c["to"] for c in data["diff"]["edgeKindChanged"]}
+    assert kinds_to == {"dataflow"}

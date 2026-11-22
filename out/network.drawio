@@ -26,13 +26,13 @@
         <mxCell id="n_server_03" value="服务器 03" style="shape=mxgraph.networks.server;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=server;" vertex="1" parent="g_server_zone">
           <mxGeometry x="20" y="48" width="160" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="e_wan_to_fw" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_wan" target="n_firewall">
+        <mxCell id="e_wan_to_fw" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_wan" target="n_firewall">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_fw_to_core" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_firewall" target="n_core_switch">
+        <mxCell id="e_fw_to_core" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_firewall" target="n_core_switch">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_core_to_s1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_01">
+        <mxCell id="e_core_to_s1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_01">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="177.5" y="498" />
@@ -40,7 +40,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e_core_to_s2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_02">
+        <mxCell id="e_core_to_s2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_02">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="215" y="488" />
@@ -48,7 +48,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e_core_to_s3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_03">
+        <mxCell id="e_core_to_s3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_03">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>

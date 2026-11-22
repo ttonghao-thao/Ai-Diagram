@@ -183,20 +183,22 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
             continue
         eid = graph_id_for(cell, "edge")
         style_keys = parse_style(cell.style)
-        kind = "physical"
-        direction = "undirected"
-        if "aiKind" not in style_keys:
-            # infer from arrows/colors of a Desktop-edited edge
-            if style_keys.get("endArrow", "none") not in ("none", ""):
-                kind = "dataflow"
-                direction = "forward"
-                if style_keys.get("startArrow", "none") not in ("none", ""):
-                    direction = "bidirectional"
-            elif style_keys.get("dashed") == "1":
-                kind, direction = "logical", "forward"
+        # Semantic markers stamped by the renderer are authoritative and make
+        # edge-type round-trips lossless; arrows remain only as a fallback
+        # heuristic for edges drawn directly in Desktop (no aiKind), which
+        # cannot distinguish logical/control/dependency — documented limit.
+        ai_kind = style_keys.get("aiKind")
+        ai_direction = style_keys.get("aiDirection")
+        if ai_kind in ("physical", "logical", "dataflow", "control", "dependency"):
+            kind = ai_kind
+            direction = ai_direction if ai_direction in ("undirected", "forward", "bidirectional") else "undirected"
+        elif style_keys.get("endArrow", "none") not in ("none", ""):
+            kind = "dataflow"
+            direction = "bidirectional" if style_keys.get("startArrow", "none") not in ("none", "") else "forward"
+        elif style_keys.get("dashed") == "1":
+            kind, direction = "logical", "forward"
         else:
-            kind = "physical"  # placeholder; aiKind on edges not emitted in Phase 0/0.5
-            direction = "undirected"
+            kind, direction = "physical", "undirected"
         edge: Dict[str, Any] = {
             "id": eid,
             "source": cell_to_graph.get(cell.source, cell.source),
@@ -256,6 +258,8 @@ class GraphDiff:
     edgeRemoved: List[str] = field(default_factory=list)
     edgeReconnected: List[Dict[str, Any]] = field(default_factory=list)
     edgeLabelChanged: List[Dict[str, Any]] = field(default_factory=list)
+    edgeKindChanged: List[Dict[str, Any]] = field(default_factory=list)
+    edgeDirectionChanged: List[Dict[str, Any]] = field(default_factory=list)
     groupAdded: List[str] = field(default_factory=list)
     groupRemoved: List[str] = field(default_factory=list)
     groupRenamed: List[Dict[str, Any]] = field(default_factory=list)
@@ -271,6 +275,8 @@ class GraphDiff:
             "edgeRemoved": len(self.edgeRemoved),
             "edgeReconnected": len(self.edgeReconnected),
             "edgeLabelChanged": len(self.edgeLabelChanged),
+            "edgeKindChanged": len(self.edgeKindChanged),
+            "edgeDirectionChanged": len(self.edgeDirectionChanged),
             "groupAdded": len(self.groupAdded),
             "groupRemoved": len(self.groupRemoved),
             "groupRenamed": len(self.groupRenamed),
@@ -278,6 +284,7 @@ class GraphDiff:
                 self.nodeAdded, self.nodeRemoved, self.nodeRenamed, self.nodeMoved,
                 self.nodeKindChanged, self.edgeAdded, self.edgeRemoved,
                 self.edgeReconnected, self.edgeLabelChanged,
+                self.edgeKindChanged, self.edgeDirectionChanged,
                 self.groupAdded, self.groupRemoved, self.groupRenamed,
             )),
         }
@@ -328,6 +335,10 @@ def diff_graphs(old: GraphDocument, new: GraphDocument, position_tolerance: floa
             })
         if (o.label or "") != (n.label or ""):
             diff.edgeLabelChanged.append({"id": eid, "from": o.label or "", "to": n.label or ""})
+        if o.kind != n.kind:
+            diff.edgeKindChanged.append({"id": eid, "from": o.kind, "to": n.kind})
+        if o.direction != n.direction:
+            diff.edgeDirectionChanged.append({"id": eid, "from": o.direction, "to": n.direction})
     for eid in old_edges:
         if eid not in new_edges:
             diff.edgeRemoved.append(eid)

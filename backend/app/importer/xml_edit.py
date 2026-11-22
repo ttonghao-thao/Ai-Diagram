@@ -59,6 +59,23 @@ def _node_style(node: Any) -> str:
     return "".join(parts)
 
 
+def _anchor_fragment(src_geo: Optional[Dict[str, Any]], tgt_geo: Optional[Dict[str, Any]]) -> str:
+    """Fixed directional connection anchors derived from endpoint geometries."""
+    if not src_geo or not tgt_geo or src_geo.get("x") is None or tgt_geo.get("x") is None:
+        return ""
+    dx = (tgt_geo["x"] + tgt_geo["width"] / 2) - (src_geo["x"] + src_geo["width"] / 2)
+    dy = (tgt_geo["y"] + tgt_geo["height"] / 2) - (src_geo["y"] + src_geo["height"] / 2)
+    if dx == 0 and dy == 0:
+        return ""
+    if abs(dx) > abs(dy):
+        if dx > 0:
+            return "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
+        return "exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;"
+    if dy > 0:
+        return "exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+    return "exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;"
+
+
 def _edge_style(kind: str, direction: str, src_geo: Optional[Dict[str, Any]],
                 tgt_geo: Optional[Dict[str, Any]]) -> str:
     parts = [EDGE_BASE_STYLE]
@@ -74,20 +91,24 @@ def _edge_style(kind: str, direction: str, src_geo: Optional[Dict[str, Any]],
         parts.append("dashed=1;dashPattern=1 3;strokeColor=#8A8A8A;strokeWidth=1;startArrow=none;startFill=0;endArrow=block;endFill=1;")
     if direction == "bidirectional" and kind != "physical":
         parts.append("startArrow=block;startFill=1;")
-    if src_geo and tgt_geo and src_geo.get("x") is not None and tgt_geo.get("x") is not None:
-        dx = (tgt_geo["x"] + tgt_geo["width"] / 2) - (src_geo["x"] + src_geo["width"] / 2)
-        dy = (tgt_geo["y"] + tgt_geo["height"] / 2) - (src_geo["y"] + src_geo["height"] / 2)
-        if not (dx == 0 and dy == 0):
-            if abs(dx) > abs(dy):
-                if dx > 0:
-                    parts.append("exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;")
-                else:
-                    parts.append("exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;")
-            elif dy > 0:
-                parts.append("exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;")
-            else:
-                parts.append("exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;")
+    # Semantic markers keep edge types lossless across Desktop round-trips.
+    parts.append(f"aiKind={kind};aiDirection={direction};")
+    parts.append(_anchor_fragment(src_geo, tgt_geo))
     return "".join(parts)
+
+
+_EDGE_ANCHOR_KEYS = ("exitX", "exitY", "exitDx", "exitDy", "entryX", "entryY", "entryDx", "entryDy")
+
+
+def _refresh_edge_anchors(inner: ET.Element, src_geo: Optional[Dict[str, Any]],
+                          tgt_geo: Optional[Dict[str, Any]]) -> None:
+    """Replace the anchor keys in an existing edge style, keeping user keys."""
+    style = inner.get("style") or ""
+    kept = [p for p in style.split(";") if p and not p.startswith(_EDGE_ANCHOR_KEYS)]
+    fragment = _anchor_fragment(src_geo, tgt_geo)
+    if fragment:
+        kept.append(fragment.rstrip(";"))
+    inner.set("style", ";".join(kept) + ";")
 
 
 @dataclass
@@ -364,6 +385,17 @@ def apply_patch_to_xml(
                 inner.set("source", mapper.node_cell(edge.source))
             if "target" in changes:
                 inner.set("target", mapper.node_cell(edge.target))
+            if "kind" in changes or "direction" in changes:
+                # Semantic type changed: rebuild the visual style from the
+                # template (this edge's arrow/dash/color tweaks are reset) so
+                # the XML stays consistent with the graph (docs/02 section 8).
+                src = new_nodes[edge.source]
+                tgt = new_nodes[edge.target]
+                inner.set("style", _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt)))
+            elif "source" in changes or "target" in changes:
+                # Endpoints moved to different nodes: refresh only the anchor
+                # keys, keeping the rest of the user's style untouched.
+                _refresh_edge_anchors(inner, _node_geo(new_nodes[edge.source]), _node_geo(new_nodes[edge.target]))
             if "waypoints" in changes:
                 geo = _ensure_geometry(inner)
                 for arr in list(geo.findall("Array")):

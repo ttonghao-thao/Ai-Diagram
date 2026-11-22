@@ -16,7 +16,7 @@ import re
 import xml.etree.ElementTree as ET
 import zlib
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote
 
 from app.schemas.api import ApiException, ErrorCode
@@ -157,6 +157,66 @@ def _parse_geometry(geo_el: Optional[ET.Element]) -> Optional[ParsedGeometry]:
         relative=geo_el.get("relative") == "1",
         points=points,
     )
+
+
+def normalize_to_uncompressed(data: bytes, max_cells: int = 5000, max_bytes: int = 10 * 1024 * 1024) -> Tuple[bytes, bool]:
+    """Rewrite a single-page mxfile so its diagram content is uncompressed.
+
+    Import commit stores the uploaded XML verbatim as the graphical source of
+    truth; without this normalization a Desktop-saved compressed page would be
+    stored compressed and every subsequent Patch application would be refused
+    (xml_edit rejects compressed pages). Returns (normalized_bytes,
+    was_normalized). The semantic content is unchanged — only the encoding.
+    """
+    if len(data) > max_bytes:
+        raise ApiException(
+            ErrorCode.DRAWIO_UPLOAD_TOO_LARGE,
+            f"file is {len(data)} bytes, exceeds the {max_bytes}-byte limit",
+        )
+    if _DOCTYPE_PATTERN.search(data[:4096]) or _DOCTYPE_PATTERN.search(data[-512:]):
+        raise ApiException(
+            ErrorCode.DRAWIO_PARSE_FAILED,
+            "XML declares a DOCTYPE/ENTITY; external entities are not accepted",
+        )
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError as exc:
+        raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, f"XML is not well-formed: {exc}") from exc
+    if root.tag == "mxGraphModel":
+        return data, False  # bare model: already uncompressed
+    if root.tag != "mxfile":
+        raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, f"root element must be mxfile, got '{root.tag}'")
+    diagrams = root.findall("diagram")
+    if len(diagrams) != 1:
+        raise ApiException(
+            ErrorCode.DRAWIO_UNSUPPORTED_CONTENT,
+            f"multi-page files are not supported ({len(diagrams)} pages found)",
+        )
+    diagram = diagrams[0]
+    model = diagram.find("mxGraphModel")
+    if model is not None and not (diagram.text or "").strip():
+        return data, False  # plain single-page content: nothing to do
+    text = (diagram.text or "").strip()
+    if not text:
+        raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "diagram has neither mxGraphModel nor compressed content")
+    xml = decompress_diagram_content(text)
+    try:
+        model = ET.fromstring(xml)
+    except ET.ParseError as exc:
+        raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, f"decompressed diagram is not well-formed: {exc}") from exc
+    if model.tag != "mxGraphModel":
+        raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "decompressed content must be an mxGraphModel")
+
+    out = ET.Element("mxfile", {k: v for k, v in root.attrib.items() if k != "compressed"})
+    out.set("compressed", "false")
+    page = ET.SubElement(out, "diagram", {
+        "id": diagram.get("id") or "page-1",
+        "name": diagram.get("name") or "Page-1",
+    })
+    page.append(model)
+    ET.indent(ET.ElementTree(out), space="  ")
+    serialized = ET.tostring(out, encoding="unicode")
+    return (f'<?xml version="1.0" encoding="UTF-8"?>\n{serialized}\n').encode("utf-8"), True
 
 
 def parse_drawio_bytes(data: bytes, max_cells: int = 5000, max_bytes: int = 10 * 1024 * 1024) -> ParsedDrawio:

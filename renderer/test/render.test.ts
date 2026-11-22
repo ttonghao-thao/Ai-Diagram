@@ -143,6 +143,8 @@ test('kind styles and physical undirected edges are reflected in the XML', async
   assert.ok(server?.style?.includes('shape=mxgraph.networks.server'));
   const phys = parsed.cellById.get(edgeCellId('wan_to_fw'));
   assert.ok(phys?.style?.includes('endArrow=none'));
+  // Semantic markers enable lossless edge-type round-trips (Phase 2 importer).
+  assert.ok(phys?.style?.includes('aiKind=physical;aiDirection=undirected'));
   // Vertical top-down layout: fixed directional anchors leave the source at
   // its bottom edge and enter the target at its top edge.
   assert.ok(phys?.style?.includes('exitX=0.5;exitY=1'));
