@@ -461,3 +461,27 @@ backend **87 passed**（79 + 8 个 P1 测试）；renderer **45/45**；`validate
 服务器 `--no-cache` 重建仍失败，追查证明 `.dockerignore` 两轮修复均在处理幻影——**真正的根因是 `.gitignore`**：裸名规则 `storage/`（无前导 `/`，同样匹配任意层级）使 `backend/app/storage/` 这个 Python 包从未进入 Git，服务器克隆出的仓库里没有该目录。修复：`.gitignore` 规则锚定（`/storage/`、`/data/`）、缺失的 `db.py`/`versions.py` 与四个缺失的 `__init__.py`（api/storage/llm/services）补交，守卫测试 `test_git_tracks_all_runtime_packages` 确保运行时包文件永远在 Git 内。backend 92 passed。
 
 另：用户 deploy/.env 使用了相对路径 `RENDERER_CLI=./renderer/...`、`STORAGE_ROOT=./storage` 等，会在容器内覆盖镜像内置的正确绝对路径（WORKDIR=/studio/backend）——部署时该文件应只保留 `LLM_*` 与限额类变量。
+
+## 13. 素材扩展：自定义 SVG 通道 + 设备别名表 + 组网图模板（2026-11-23）
+
+### 13.1 交付内容
+
+| 项 | 说明 |
+|---|---|
+| 自定义 SVG 默认素材 | `renderer/assets/icons/`：**项目自绘原创**蓝色渐变风格 3 枚（access_point 无线AP / vpn_gateway VPN网关 / ids_ips 入侵检测）。未采用网传素材包（CSDN 包仅限个人学习、Flaticon 需署名、Cisco 图标涉商标），通道可随时替换任意 SVG，用法见 icons/README.md |
+| 设备别名表（无需改 schema） | `ALIAS_REGISTRY`（TS）+ `ALIAS_STYLES`（Python 镜像）：8 个 `properties.deviceType` 别名映射到 draw.io 内置 stencil——access_point→wireless_hub、load_balancer、modem、proxy→proxy_server、vpn_gateway→secured、hub、mainframe、rack。别名节点 patch 新增时同样获得正确 stencil |
+| 组网图模板 | `fixtures/templates/enterprise_network.graph.json`（互联网→出口路由→防火墙→核心→接入/无线/服务器三分区，VPN 旁挂，链路标注）；工作台"生成图纸"页新增**组网图模板**示例按钮；产物 `out/enterprise_network.drawio`（16 顶点/12 边）已生成并经 viewer 渲染验证（PNG 见交付记录） |
+
+### 13.2 图标解析验证（enterprise_network.drawio 实测）
+
+VPN 网关与两台无线 AP → **内嵌自定义 SVG**（含 aiDeviceType 保留）；负载均衡 → load_balancer stencil；
+云/路由/防火墙/交换机/服务器/数据库 → 基础 stencil。全部 13 节点解析路径符合优先级设计。
+
+### 13.3 回归
+
+renderer **48/48**（+3：别名 stencil、SVG 覆盖别名、别名渲染往返）；backend **92/92**（同步测试覆盖两侧别名表）。
+
+### 13.4 说明
+
+- 流程图/组织结构图仍不在支持范围（需 schema 枚举扩展，见 docs/11 F-3）；"画布拖拽调整"由 draw.io Desktop 承担（边界 D-02）
+- mock 文本解析对别名设备（如中文"无线AP"）不会自动归一为英文别名——别名靠 Graph JSON 的 deviceType 显式指定

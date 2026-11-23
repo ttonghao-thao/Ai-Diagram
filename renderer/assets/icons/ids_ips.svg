@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 92" width="96" height="92">
+  <!-- 入侵检测/防御 IDS/IPS（原创，项目自有素材，可自由替换） -->
+  <defs>
+    <linearGradient id="idsShield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8734f"/>
+      <stop offset="1" stop-color="#a83220"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="48" cy="82" rx="30" ry="7" fill="#5e1c12" opacity="0.25"/>
+  <path d="M48 8 L80 18 V44 C80 62 66 74 48 82 C30 74 16 62 16 44 V18 Z"
+        fill="url(#idsShield)" stroke="#5e1c12" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M48 8 L80 18 V44 C80 62 66 74 48 82 Z" fill="#c94f2e" opacity="0.35"/>
+  <circle cx="48" cy="42" r="13" fill="#fff2e8" stroke="#5e1c12" stroke-width="2.2"/>
+  <circle cx="48" cy="42" r="5.4" fill="#5e1c12"/>
+  <circle cx="50.5" cy="39.5" r="1.8" fill="#fff2e8"/>
+  <path d="M30 26 q4 -6 10 -8" fill="none" stroke="#ffd8c8" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+</svg>

@@ -34,6 +34,19 @@ NODE_STYLES = {
     "generic": "whiteSpace=wrap;html=1;rounded=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontColor=#4A3B00;",
 }
 
+# Extended deviceType aliases mirroring renderer ALIAS_REGISTRY (kept in
+# sync by tests/test_phase_p1.py::test_stencil_ids_match_between_ts_and_python).
+ALIAS_STYLES = {
+    "access_point": "shape=mxgraph.networks.wireless_hub;",
+    "load_balancer": "shape=mxgraph.networks.load_balancer;",
+    "modem": "shape=mxgraph.networks.modem;",
+    "proxy": "shape=mxgraph.networks.proxy_server;",
+    "vpn_gateway": "shape=mxgraph.networks.secured;",
+    "hub": "shape=mxgraph.networks.hub;",
+    "mainframe": "shape=mxgraph.networks.mainframe;",
+    "rack": "shape=mxgraph.networks.rack;",
+}
+
 EDGE_BASE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;"
 
 GROUP_STYLE = (
@@ -51,7 +64,11 @@ def _fmt(n: Any) -> str:
 
 def _node_style(node: Any) -> str:
     kind = node.kind if isinstance(node.kind, str) else "generic"
-    base = NODE_STYLES.get(kind, NODE_STYLES["generic"])
+    device_type = (node.properties or {}).get("deviceType")
+    if kind == "generic" and isinstance(device_type, str) and device_type in ALIAS_STYLES:
+        base = ALIAS_STYLES[device_type]  # patch-added alias nodes keep their stencil
+    else:
+        base = NODE_STYLES.get(kind, NODE_STYLES["generic"])
     parts = [base, "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;", f"aiKind={kind};"]
     device_type = (node.properties or {}).get("deviceType")
     if device_type:

@@ -261,3 +261,47 @@ test('horizontal neighbours get side anchors; no anchors for coincident centers'
   };
   assert.equal(edgeAnchorStyle(same as never, 'n_a', 'n_b'), '');
 });
+
+test('deviceType extended aliases resolve to mxgraph.networks stencils', () => {
+  const lb = resolveNodeIcon({ id: 'lb1', label: '负载均衡', kind: 'generic', properties: { deviceType: 'load_balancer' } });
+  assert.equal(lb.resolvedBy, 'alias-stencil');
+  assert.ok(lb.style.startsWith('shape=mxgraph.networks.load_balancer;'));
+  assert.ok(lb.style.includes('aiDeviceType=load_balancer'));
+  assert.ok(lb.style.includes('aiKind=generic'));
+  const ap = resolveNodeIcon({ id: 'ap1', label: 'AP', kind: 'generic', properties: { deviceType: 'access_point' } });
+  assert.ok(ap.style.startsWith('shape=mxgraph.networks.wireless_hub;'));
+});
+
+test('custom SVG file for an alias overrides its stencil (assets/icons)', () => {
+  // Simulate the shipped default material without touching the real dir.
+  const icons = new Map([['access_point', 'data:image/svg+xml,%3Csvg%3Etest%3C/svg%3E']]);
+  const icon = resolveNodeIcon(
+    { id: 'ap2', label: '无线AP', kind: 'generic', properties: { deviceType: 'access_point' } },
+    icons,
+  );
+  assert.equal(icon.resolvedBy, 'custom-svg');
+  assert.ok(icon.style.startsWith('shape=image;'));
+  assert.ok(!icon.style.includes('base64'));
+});
+
+test('alias kinds survive a render->import roundtrip', async () => {
+  const doc: GraphDocument = {
+    schemaVersion: '1.0',
+    diagramId: 'alias_rt',
+    name: '别名往返',
+    diagramType: 'network_topology',
+    nodes: [
+      { id: 'lb', label: '负载均衡', kind: 'generic', properties: { deviceType: 'load_balancer' } },
+      { id: 'sw', label: '交换机', kind: 'switch' },
+    ],
+    groups: [],
+    edges: [],
+    layout: { algorithm: 'layered', direction: 'DOWN', preserveManualPositions: true },
+  };
+  const layout = await layoutGraph(doc);
+  const xml = serializeDrawio(doc, layout);
+  const parsed = parseDrawioXml(xml);
+  const lbStyle = parsed.cellById.get('n_lb')!.style ?? '';
+  assert.ok(lbStyle.includes('shape=mxgraph.networks.load_balancer'));
+  assert.ok(lbStyle.includes('aiDeviceType=load_balancer'));
+});

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from './api';
+import { SAMPLE_ENTERPRISE_NETWORK } from './samples/enterpriseNetwork';
 
 /**
  * Phase 1 minimal admin console (docs/01 section 6): generate / parse /
@@ -146,6 +147,7 @@ function GenerateTab() {
         加载示例：
         <button onClick={() => setText(JSON.stringify(SAMPLE_NETWORK, null, 2))}>网络拓扑</button>
         <button onClick={() => setText(JSON.stringify(SAMPLE_BUSINESS, null, 2))}>业务架构</button>
+        <button onClick={() => setText(JSON.stringify(SAMPLE_ENTERPRISE_NETWORK, null, 2))}>组网图模板</button>
       </p>
       <textarea rows={14} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
       <button className="primary" disabled={busy} onClick={submit}>

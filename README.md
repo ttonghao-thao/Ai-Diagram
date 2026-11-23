@@ -68,7 +68,8 @@ python3 scripts/validate_fixtures.py
 cd renderer
 npm install          # 首次；依赖精确锁定（elkjs 0.12.1 / fast-xml-parser 5.12.1 / typescript 5.9.3）
 npm test             # 构建 + 45 个自动化测试，并产出 out/network.drawio、out/business.drawio
-npm run generate:all # 仅生成两张交付图（专业设备图标）
+npm run generate:all # 生成两张交付图（专业设备图标）
+node dist/src/cli.js generate --input ../fixtures/templates/enterprise_network.graph.json --output ../out/enterprise_network.drawio  # 组网图模板
 node dist/src/cli.js generate --input ../fixtures/network.graph.json --output ../out/network.drawio
 node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icons-dir <自定义SVG目录>
 node dist/src/cli.js validate  --input ../out/network.drawio

@@ -115,6 +115,64 @@ export const ICON_REGISTRY: Record<NodeKind, IconDescriptor> = {
   },
 };
 
+/**
+ * Extended device-type aliases (Phase 3 early deliverable): nodes with
+ * kind="generic" and properties.deviceType matching one of these keys get
+ * the mapped professional stencil WITHOUT any schema change. All shape ids
+ * are existing mxgraph.networks members (verified in drawio v24.7.17
+ * stencils/networks.xml).
+ */
+export const ALIAS_REGISTRY: Record<string, IconDescriptor> = {
+  // "Wireless Hub" - wireless access point
+  access_point: {
+    stencilStyle: labelBelow(networksStencil('wireless_hub')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 110, height: 80, source: 'stencil:mxgraph.networks',
+  },
+  // "Load Balancer" (100x29)
+  load_balancer: {
+    stencilStyle: labelBelow(networksStencil('load_balancer')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 130, height: 48, source: 'stencil:mxgraph.networks',
+  },
+  // "Modem"
+  modem: {
+    stencilStyle: labelBelow(networksStencil('modem')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 110, height: 72, source: 'stencil:mxgraph.networks',
+  },
+  // "Proxy Server" (103x107)
+  proxy: {
+    stencilStyle: labelBelow(networksStencil('proxy_server')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 90, height: 96, source: 'stencil:mxgraph.networks',
+  },
+  // "Secured" - VPN gateway style locked tunnel
+  vpn_gateway: {
+    stencilStyle: labelBelow(networksStencil('secured')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 96, height: 90, source: 'stencil:mxgraph.networks',
+  },
+  // "Hub"
+  hub: {
+    stencilStyle: labelBelow(networksStencil('hub')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 110, height: 70, source: 'stencil:mxgraph.networks',
+  },
+  // "Mainframe" (80x100)
+  mainframe: {
+    stencilStyle: labelBelow(networksStencil('mainframe')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 90, height: 100, source: 'stencil:mxgraph.networks',
+  },
+  // "Rack"
+  rack: {
+    stencilStyle: labelBelow(networksStencil('rack')),
+    fallbackStyle: labelBelow(NODE_STYLES.generic),
+    width: 100, height: 96, source: 'stencil:mxgraph.networks',
+  },
+};
+
 /** Keys a custom SVG may be registered under (alias names, lowercased). */
 function aliasKeys(node: GraphNode): string[] {
   const keys: string[] = [node.kind];
@@ -230,11 +288,18 @@ export function resolveNodeIcon(
       }
     }
   }
-  // 3. Registry stencil via deviceType alias (e.g. generic node typed "firewall").
+  // 3. Registry stencil via deviceType alias: extended aliases first
+  //    (AP/LB/modem/proxy/VPN/hub/mainframe/rack), then kind-named aliases
+  //    (e.g. a generic node typed "firewall").
   if (deviceType) {
-    const alias = deviceType.toLowerCase() as NodeKind;
-    if (alias !== node.kind && alias in ICON_REGISTRY) {
-      const desc = ICON_REGISTRY[alias];
+    const alias = deviceType.toLowerCase();
+    const extended = ALIAS_REGISTRY[alias];
+    if (extended) {
+      return finish(extended.stencilStyle, extended.width, extended.height, 'alias-stencil');
+    }
+    const kindAlias = alias as NodeKind;
+    if (kindAlias !== node.kind && kindAlias in ICON_REGISTRY) {
+      const desc = ICON_REGISTRY[kindAlias];
       return finish(desc.stencilStyle, desc.width, desc.height, 'alias-stencil');
     }
   }
