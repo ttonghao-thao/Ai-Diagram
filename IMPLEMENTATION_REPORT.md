@@ -447,3 +447,11 @@ ee97759678844175bd499ae2d67d375ffae055480f041683bb21cbdb58d06b99  out/business.d
 ### 12.3 回归
 
 backend **87 passed**（79 + 8 个 P1 测试）；renderer **45/45**；`validate_fixtures.py` PASS。
+
+### 12.4 容器部署首次实机记录（2026-11-23，用户环境）
+
+- `docker compose up --build`：**镜像构建成功**（160.2s，前端/渲染器 npm ci + 构建均通过）
+- 运行时失败：`ModuleNotFoundError: No module named 'app.storage'`
+- 根因：`.dockerignore` 裸名模式 `storage` 在 Docker 的匹配规则下命中任意层级，误排除 `backend/app/storage/` 代码包
+- 修复：运行时数据目录锚定为 `/storage`、`/data`、`/out`；新增 `tests/test_dockerignore_guard.py`（模拟 dockerignore 匹配语义，断言全部 backend/frontend/renderer 运行时文件不被排除、数据目录仍被排除）
+- 状态：待用户重跑确认运行时（docs/09、docs/11 B-2 已同步更新）

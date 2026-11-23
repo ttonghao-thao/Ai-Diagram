@@ -14,7 +14,7 @@ curl http://127.0.0.1:8000/health   # {"status":"ok","rendererAvailable":true}
 - 单容器封装 backend + renderer + frontend 静态产物；镜像内 `npm ci` 锁定依赖并预构建
 - 数据持久化：命名卷 `studio-data` → 容器内 `/data/storage`（SQLite + 逐版本快照）
 - 健康检查：镜像 `HEALTHCHECK` 与 compose `healthcheck` 均探测 `/health`
-- ⚠️ **诚实声明**：`Dockerfile`/`compose.yaml` 已逐行核对并加固（npm ci、.dockerignore、HEALTHCHECK），但开发机无 Docker，**未实际执行过**；首次部署如遇问题请反馈并改用方式 B
+- **实机验证状态（2026-11-23 更新）**：compose 路径已在用户 Linux 环境首次实机构建成功（镜像 160.2s 构建完成）；运行时暴露了 `.dockerignore` 裸名 `storage` 误排除 `backend/app/storage/` 的缺陷（ModuleNotFoundError），**已修复并用防回归测试锁定**（tests/test_dockerignore_guard.py）。请重跑 `docker compose up --build -d` 并以 `curl /health` 确认；如仍有问题请反馈并临时改用方式 B
 
 ## 2. 方式 B：裸机部署（已在开发机验证的路径）
 
@@ -59,6 +59,6 @@ LLM_ENABLED=false python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --a
 
 ## 6. 已知部署限制
 
-- compose 路径未实机执行（见上文声明）；裸机路径已验证
+- compose 路径：构建已实机通过；运行时待重跑确认（首跑缺陷已修，见 §1 声明）；裸机路径已验证
 - 预览令牌存进程内存：多 worker / 多实例部署会令预览-应用跨进程失败（docs/11 O-3），单 worker 部署最稳
 - 无身份鉴权：仅限受控内网，勿直接暴露公网（docs/04 §6）

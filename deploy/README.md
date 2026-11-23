@@ -3,7 +3,7 @@
 容器制作与部署的完整方案见 [../docs/09_DEPLOYMENT.md](../docs/09_DEPLOYMENT.md)。
 本目录只放部署物料：`Dockerfile`、`compose.yaml`、`env.example`。
 
-快速启动（**未经实机执行**，环境无 Docker；步骤与文件已逐行核对）：
+快速启动（2026-11-23 首次实机构建成功；首跑发现 .dockerignore 误伤代码包已修复，运行时待重跑确认）：
 
 ```bash
 cp env.example .env          # 按需填写 LLM_*；默认 LLM_ENABLED=false 即完整可用

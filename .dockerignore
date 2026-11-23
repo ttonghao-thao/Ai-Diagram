@@ -1,13 +1,18 @@
 # Keep the build context small and free of secrets/runtime data.
+#
+# NOTE: Docker matches bare names (no leading slash) at ANY level of the tree,
+# so runtime-data directories MUST be anchored with a leading slash — a bare
+# `storage` once excluded backend/app/storage/ and broke the container at
+# runtime (ModuleNotFoundError: app.storage). Keep code dirs unmatchable.
 .git
 .gitignore
 **/node_modules
 **/dist
 **/__pycache__
 **/.pytest_cache
-storage
-data
-out
+/storage
+/data
+/out
 *.db
 .env
 *.local
