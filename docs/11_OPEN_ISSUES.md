@@ -8,7 +8,7 @@
 | ID | 问题 | 影响 | 状态 |
 |---|---|---|---|
 | B-1 | **Windows draw.io Desktop 人工验收未执行**（Phase 0 起继承的闸门） | 全部"可编辑性"结论仍属结构推断；真实 Desktop 保存格式/行为未实测 | BLOCKED——按 docs/10 §2 清单执行 |
-| B-2 | Docker/compose 路径实机验证 | 首次实机（2026-11-23）：镜像构建成功，运行时暴露 .dockerignore 裸名 `storage` 误排除 `backend/app/storage/`——**已修复 + 防回归测试**（tests/test_dockerignore_guard.py） | 待重跑 `docker compose up --build -d` 确认运行时 |
+| B-2 | Docker/compose 路径实机验证 | 首次实机（2026-11-23）：构建成功；运行时两连暴露 .dockerignore 缺陷——①裸名 `storage` ②前导 `/` 锚定在旧版 Docker 剥斜杠后同样失效。**最终修复：不按目录名排除（守卫测试 test_dockerignore_guard.py 禁止回归），运行数据由容器内卷承载** | 待重跑 build --no-cache + up -d 确认运行时 |
 
 ## 安全与规约（评审 P1 剩余）
 

@@ -1,20 +1,23 @@
 # Keep the build context small and free of secrets/runtime data.
 #
-# NOTE: Docker matches bare names (no leading slash) at ANY level of the tree,
-# so runtime-data directories MUST be anchored with a leading slash — a bare
-# `storage` once excluded backend/app/storage/ and broke the container at
-# runtime (ModuleNotFoundError: app.storage). Keep code dirs unmatchable.
+# LESSON (twice burned): patterns that exclude directories by NAME — bare
+# `storage` or anchored `/storage` — can match or be normalized to match at
+# ANY level depending on the Docker version, and once excluded
+# backend/app/storage/ broke the container at runtime
+# (ModuleNotFoundError: app.storage). Only pattern shapes that CANNOT hit
+# code paths are allowed here:
+#   **/<name>   (no code dir is named node_modules/dist/__pycache__/.pytest_cache)
+#   *.ext       (no code file ends in .db/.local)
+# Runtime data dirs (storage/, out/) intentionally stay in the context: the
+# container never uses them (STORAGE_ROOT points at the /data/storage volume),
+# so at worst they add harmless build-context weight.
 .git
 .gitignore
 **/node_modules
 **/dist
 **/__pycache__
 **/.pytest_cache
-/storage
-/data
-/out
 *.db
 .env
 *.local
 .DS_Store
-Thumbs.db

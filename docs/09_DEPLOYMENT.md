@@ -14,7 +14,7 @@ curl http://127.0.0.1:8000/health   # {"status":"ok","rendererAvailable":true}
 - 单容器封装 backend + renderer + frontend 静态产物；镜像内 `npm ci` 锁定依赖并预构建
 - 数据持久化：命名卷 `studio-data` → 容器内 `/data/storage`（SQLite + 逐版本快照）
 - 健康检查：镜像 `HEALTHCHECK` 与 compose `healthcheck` 均探测 `/health`
-- **实机验证状态（2026-11-23 更新）**：compose 路径已在用户 Linux 环境首次实机构建成功（镜像 160.2s 构建完成）；运行时暴露了 `.dockerignore` 裸名 `storage` 误排除 `backend/app/storage/` 的缺陷（ModuleNotFoundError），**已修复并用防回归测试锁定**（tests/test_dockerignore_guard.py）。请重跑 `docker compose up --build -d` 并以 `curl /health` 确认；如仍有问题请反馈并临时改用方式 B
+- **实机验证状态（2026-11-23 第二次更新）**：compose 首次实机构建成功后，运行时暴露 `.dockerignore` 缺陷——先发现裸名 `storage` 误排除 `backend/app/storage/`（已修），用户 `--no-cache` 重跑后又证明**前导 `/` 锚定在旧版 Docker 同样失效（匹配前剥掉斜杠）**。最终方案：`.dockerignore` 彻底不按目录名排除（只允许 `**/<工具目录>` 与 `*.后缀` 形态，并有守卫测试禁止回归），运行时目录改由容器内 `STORAGE_ROOT=/data/storage` 卷承载、不入镜像。**请再次重跑**：`docker compose down && docker compose build --no-cache && docker compose run --rm --no-deps studio ls /studio/backend/app/storage && docker compose up -d`，然后 `curl /health` 确认
 
 ## 2. 方式 B：裸机部署（已在开发机验证的路径）
 
