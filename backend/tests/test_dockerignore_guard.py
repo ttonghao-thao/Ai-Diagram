@@ -107,3 +107,37 @@ def test_runtime_data_db_files_stay_out_of_context() -> None:
     # git still ignores runtime data (separate .gitignore responsibility).
     gitignore = (REPO / ".gitignore").read_text(encoding="utf-8")
     assert "storage/" in gitignore and "*.db" in gitignore
+
+
+def test_git_tracks_all_runtime_packages() -> None:
+    """Second deploy killer (docs/11 B-2): bare `storage/` in .gitignore
+    silently excluded the backend/app/storage Python package from git, so
+    servers cloned from GitHub never received it. Guard: every runtime
+    package file must be git-tracked."""
+    import subprocess
+
+    must_be_tracked = [
+        "backend/app/__init__.py",
+        "backend/app/api/__init__.py",
+        "backend/app/storage/__init__.py",
+        "backend/app/storage/db.py",
+        "backend/app/storage/versions.py",
+        "backend/app/llm/__init__.py",
+        "backend/app/services/__init__.py",
+        "backend/app/importer/__init__.py",
+    ]
+    tracked = set(subprocess.run(
+        ["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True,
+    ).stdout.splitlines())
+    for rel in must_be_tracked:
+        assert (REPO / rel).is_file(), f"missing on disk: {rel}"
+        assert rel in tracked, (
+            f"'{rel}' is NOT committed to git — check .gitignore for bare "
+            "directory names (they match at any level in git too)!"
+        )
+    # gitignore must never again contain bare runtime-data dir names.
+    gitignore = (REPO / ".gitignore").read_text(encoding="utf-8")
+    for line in gitignore.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and line.rstrip("/") in ("storage", "data", "out"):
+            assert line.startswith("/"), f".gitignore has unanchored dir name: '{line}'"

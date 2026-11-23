@@ -10,8 +10,10 @@ __pycache__/
 .venv/
 
 # Runtime data (version snapshots, SQLite) — never commit user diagrams.
-storage/
-data/
+# NOTE: anchored with a leading slash! A bare `storage/` matches ANY level
+# and once silently excluded the backend/app/storage/ code package from git.
+/storage/
+/data/
 *.db
 
 # env / local

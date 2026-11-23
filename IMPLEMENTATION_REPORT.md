@@ -455,3 +455,9 @@ backend **87 passed**（79 + 8 个 P1 测试）；renderer **45/45**；`validate
 - 根因：`.dockerignore` 裸名模式 `storage` 在 Docker 的匹配规则下命中任意层级，误排除 `backend/app/storage/` 代码包
 - 修复：运行时数据目录锚定为 `/storage`、`/data`、`/out`；新增 `tests/test_dockerignore_guard.py`（模拟 dockerignore 匹配语义，断言全部 backend/frontend/renderer 运行时文件不被排除、数据目录仍被排除）
 - 状态：待用户重跑确认运行时（docs/09、docs/11 B-2 已同步更新）
+
+### 12.5 容器运行时的最终根因（2026-11-23 第二次修正）
+
+服务器 `--no-cache` 重建仍失败，追查证明 `.dockerignore` 两轮修复均在处理幻影——**真正的根因是 `.gitignore`**：裸名规则 `storage/`（无前导 `/`，同样匹配任意层级）使 `backend/app/storage/` 这个 Python 包从未进入 Git，服务器克隆出的仓库里没有该目录。修复：`.gitignore` 规则锚定（`/storage/`、`/data/`）、缺失的 `db.py`/`versions.py` 与四个缺失的 `__init__.py`（api/storage/llm/services）补交，守卫测试 `test_git_tracks_all_runtime_packages` 确保运行时包文件永远在 Git 内。backend 92 passed。
+
+另：用户 deploy/.env 使用了相对路径 `RENDERER_CLI=./renderer/...`、`STORAGE_ROOT=./storage` 等，会在容器内覆盖镜像内置的正确绝对路径（WORKDIR=/studio/backend）——部署时该文件应只保留 `LLM_*` 与限额类变量。

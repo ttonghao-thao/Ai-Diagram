@@ -8,7 +8,7 @@
 | ID | 问题 | 影响 | 状态 |
 |---|---|---|---|
 | B-1 | **Windows draw.io Desktop 人工验收未执行**（Phase 0 起继承的闸门） | 全部"可编辑性"结论仍属结构推断；真实 Desktop 保存格式/行为未实测 | BLOCKED——按 docs/10 §2 清单执行 |
-| B-2 | Docker/compose 路径实机验证 | 首次实机（2026-11-23）：构建成功；运行时两连暴露 .dockerignore 缺陷——①裸名 `storage` ②前导 `/` 锚定在旧版 Docker 剥斜杠后同样失效。**最终修复：不按目录名排除（守卫测试 test_dockerignore_guard.py 禁止回归），运行数据由容器内卷承载** | 待重跑 build --no-cache + up -d 确认运行时 |
+| B-2 | Docker/compose 路径实机验证 | 首次实机（2026-11-23）连环诊断，**最终根因是 `.gitignore` 裸名 `storage/` 把 `backend/app/storage/` 代码包排除在 Git 之外**——服务器克隆的仓库里根本没有该目录（dockerignore 两轮修复均是对着幻影打拳，但顺带把容器构建正确性也加固了）。已修复：gitignore 锚定为 `/storage/`、`/data/`，缺失文件补交，四个缺失的 `__init__.py` 补齐，守卫测试 `test_git_tracks_all_runtime_packages` 防回归 | 待服务器 `git pull` 后重建确认运行时 |
 
 ## 安全与规约（评审 P1 剩余）
 
