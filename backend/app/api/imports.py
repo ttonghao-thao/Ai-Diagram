@@ -51,9 +51,36 @@ class PreviewTokenStore:
         import time
 
         now = time.time()
-        stale = [t for t, v in self._store.items() if now - v.get("_ts", now) > _PREVIEW_TTL_SECONDS]
+        # Entries without a usable timestamp expire immediately rather than
+        # living forever (the old `v.get("_ts", now)` default made the delta 0).
+        stale = [
+            t for t, v in self._store.items()
+            if now - float(v.get("_ts") or 0.0) > _PREVIEW_TTL_SECONDS
+        ]
         for t in stale:
             self._store.pop(t, None)
+
+
+UPLOAD_CHUNK_BYTES = 256 * 1024
+
+
+async def _read_upload_limited(file: UploadFile, max_bytes: int) -> bytes:
+    """Stream the upload in chunks and refuse as soon as the limit is hit, so
+    an oversized body never sits fully in memory (docs/04 section 6)."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(UPLOAD_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise ApiException(
+                ErrorCode.DRAWIO_UPLOAD_TOO_LARGE,
+                f"upload exceeds the {max_bytes}-byte limit",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _register_token_store(app) -> None:
@@ -79,7 +106,7 @@ async def import_preview(
             f"baseVersion {baseVersion} does not match current version {diagram.current_version}",
             {"currentVersion": diagram.current_version, "baseVersion": baseVersion},
         )
-    data = await file.read()
+    data = await _read_upload_limited(file, state.settings.max_drawio_upload_bytes)
     parsed = parse_drawio_bytes(
         data,
         max_cells=state.settings.max_xml_cells,

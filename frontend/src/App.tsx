@@ -471,6 +471,7 @@ function VersionsTab() {
 
   const relayout = async () => {
     if (!selected || !versions) return;
+    if (!window.confirm("重新布局会以 ELK 重排全图（手工位置将丢失，历史版本可回滚），继续？")) return;
     setBusyVersion(true);
     setLayoutMsg(null);
     try {
@@ -479,6 +480,22 @@ function VersionsTab() {
       await openVersions(selected);
     } catch (e) {
       setLayoutMsg(`重排失败：${(e as ApiError).code} ${(e as ApiError).message}`);
+    } finally {
+      setBusyVersion(false);
+    }
+  };
+
+  const rollback = async (targetVersion: number) => {
+    if (!selected) return;
+    if (!window.confirm(`回滚到 v${targetVersion}？将以该版本内容创建新版本（不删除历史）。`)) return;
+    setBusyVersion(true);
+    setLayoutMsg(null);
+    try {
+      const { data } = await api.rollback(selected, targetVersion, versions!.currentVersion);
+      setLayoutMsg(`已回滚：新版本 v${(data as any).version.version}（内容取自 v${(data as any).rolledBackTo}）`);
+      await openVersions(selected);
+    } catch (e) {
+      setLayoutMsg(`回滚失败：${(e as ApiError).code} ${(e as ApiError).message}`);
     } finally {
       setBusyVersion(false);
     }
@@ -516,7 +533,7 @@ function VersionsTab() {
           {layoutMsg && <p className="hint">{layoutMsg}</p>}
           <table>
             <thead>
-              <tr><th>版本</th><th>来源</th><th>父版本</th><th>SHA-256</th><th>时间</th><th>下载</th></tr>
+              <tr><th>版本</th><th>来源</th><th>父版本</th><th>SHA-256</th><th>时间</th><th>操作</th></tr>
             </thead>
             <tbody>
               {versions.versions.map((v: any) => (
@@ -526,7 +543,13 @@ function VersionsTab() {
                   <td>{v.parentVersion ?? '—'}</td>
                   <td><code>{String(v.sha256).slice(0, 16)}…</code></td>
                   <td>{v.createdAt}</td>
-                  <td><a href={api.exportUrl(selected, v.version)} download={`v${v.version}.drawio`}>.drawio</a></td>
+                  <td>
+                    <a href={api.exportUrl(selected, v.version)} download={`v${v.version}.drawio`}>.drawio</a>
+                    {'　'}
+                    {v.version !== versions.currentVersion && (
+                      <button onClick={() => rollback(v.version)}>回滚到此版本</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

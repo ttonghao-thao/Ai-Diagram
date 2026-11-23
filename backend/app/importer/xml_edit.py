@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from app.importer.xml_parser import _DOCTYPE_PATTERN
+from app.importer.xml_parser import guard_no_dtd
 from app.schemas.api import ApiException, ErrorCode
 from app.schemas.graph import GraphDocument
 
@@ -123,10 +123,7 @@ def _inner(el: ET.Element) -> ET.Element:
 
 
 def load_xml_context(xml_bytes: bytes, max_cells: int = 5000) -> XmlEditContext:
-    if len(xml_bytes) > MAX_XML_BYTES:
-        raise ApiException(ErrorCode.DRAWIO_UPLOAD_TOO_LARGE, "stored XML exceeds the size limit")
-    if _DOCTYPE_PATTERN.search(xml_bytes[:4096]):
-        raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "stored XML declares DOCTYPE/ENTITY; refusing to edit")
+    guard_no_dtd(xml_bytes, MAX_XML_BYTES)
     try:
         tree = ET.ElementTree(ET.fromstring(xml_bytes))
     except ET.ParseError as exc:

@@ -50,11 +50,15 @@ python scripts/validate_fixtures.py
 Phase 0.5 追加**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）；
 Phase 1 交付 **FastAPI + SQLite/文件版本快照 + LLM（mock/OpenAI-compatible）+ 最小 React 工作台**；
 Phase 2 交付 **Desktop 回导（安全解析/压缩页/Diff/未知对象保留）+ GraphPatch 增量修改（预览→确认→原子应用、位置保护、XML 定向编辑）**。
-**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)。
+**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)；
+实现架构见 [docs/08](docs/08_IMPLEMENTED_ARCHITECTURE.md)，部署方案见 [docs/09](docs/09_DEPLOYMENT.md)，
+验证手册见 [docs/10](docs/10_VERIFICATION_MANUAL.md)，遗留问题台账见 [docs/11](docs/11_OPEN_ISSUES.md)。
 
 确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
 Phase 0.5 追加了**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）。
-**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)。
+**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)；
+实现架构见 [docs/08](docs/08_IMPLEMENTED_ARCHITECTURE.md)，部署方案见 [docs/09](docs/09_DEPLOYMENT.md)，
+验证手册见 [docs/10](docs/10_VERIFICATION_MANUAL.md)，遗留问题台账见 [docs/11](docs/11_OPEN_ISSUES.md)。
 
 ```bash
 # 1) 素材自检
@@ -70,7 +74,7 @@ node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icon
 node dist/src/cli.js validate  --input ../out/network.drawio
 
 # 3) 图模型与语义校验 + Phase 1 API（FastAPI + SQLite + LLM mock）
-cd ../backend && python3 -m pytest   # 76 个测试（G/X + A/V + 文本用例 + I/P 系列）
+cd ../backend && python3 -m pytest   # 87 个测试（G/X + A/V + 文本用例 + I/P + P1 加固/同步）
 
 # 4) Web 工作台（Phase 1/2：生成 / 解析 / 校验 / 版本 / 导入回导 / AI 修改）
 cd ../frontend && npm install && npm run build     # 产物由 FastAPI 静态挂载

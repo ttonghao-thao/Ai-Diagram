@@ -1,0 +1,15 @@
+# Keep the build context small and free of secrets/runtime data.
+.git
+.gitignore
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+storage
+data
+out
+*.db
+.env
+*.local
+.DS_Store
+Thumbs.db

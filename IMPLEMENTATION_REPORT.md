@@ -418,3 +418,32 @@ ee97759678844175bd499ae2d67d375ffae055480f041683bb21cbdb58d06b99  out/business.d
 ### 11.5 评审中确认、本次未修（待排期）
 
 按优先级：上传先读后限（内存 DoS 面）→ DOCTYPE 全文扫描 → 流式下载 → 版本回滚端点 → 导入后自动锁定策略声明 → 重复实现对照测试 → frontend lockfile/npm ci → 前端自动化。详见评审记录。
+
+## 12. P1 加固与文档体系（2026-11-23）
+
+### 12.1 评审 P1 项修复（对照评审记录）
+
+| 项 | 修复 | 验证 |
+|---|---|---|
+| 上传先读后限（内存 DoS 面） | `imports.py::_read_upload_limited`：256KB 分块流式读取，超限立即 413，不再全量缓冲 | 大文件（~100KB vs 1KB 限制）流式拒绝测试 |
+| DOCTYPE 检查只扫首尾窗口 | 新增共用 `guard_no_dtd`（xml_parser.py），全文正则扫描；parse/normalize/xml_edit 三处统一接入 | DOCTYPE 藏于 5KB 注释之后 → 400 拒绝（旧窗口检查会放过） |
+| 下载非流式 | export 改 `StreamingResponse`，256KB 分块读盘，保留 Content-Disposition/X-Content-SHA256 | 既有导出测试全部保持通过 |
+| Dockerfile frontend 未锁依赖 | frontend 补交 package-lock.json 并改 `npm ci`；新增仓库根 `.dockerignore`；镜像/Compose 增加 HEALTHCHECK | 静态核对（无 Docker 实机，维持"未验证"声明） |
+| PreviewTokenStore 清理失效 | `_ts` 缺失按 0 处理立即过期（旧默认值使差值恒 0） | 代码审查确认 |
+| 版本回滚缺失（docs/04 §5.5 / docs/01 §6） | `POST /diagrams/{id}/rollback {targetVersion, baseVersion}`：创建 origin=rollback 新版本指向目标内容，历史不动；前端版本页新增"回滚到此版本" | 新端点测试：回滚成功（v3=回滚，v1 字节不变，链完整）、409 过期、404 目标不存在 |
+| 重排无二次确认 | 前端"重新布局"增加 confirm 弹窗（提示手工位置丢失、可回滚） | 前端构建通过 |
+| 锁定策略未声明（docs/02 §8） | 策略明示：manualLocked 为显式语义字段，跨回导保留；Desktop 移动不自动锁定，解锁是用户决定 | 新增导入保留 manualLocked 的断言测试 |
+| 双实现漂移无检测 | 新增 tests/test_phase_p1.py 同步测试：静态（TS networksStencil 参数 vs Python mxgraph.networks 清单一致）+ 行为（10 种 kind 渲染→导入全保真） | 8/8 通过 |
+
+### 12.2 文档体系
+
+新增实现侧文档四份（需求侧 docs/00–07 保持原样）：
+
+- [docs/08_IMPLEMENTED_ARCHITECTURE.md](docs/08_IMPLEMENTED_ARCHITECTURE.md)：实际架构、三条核心数据流、关键约定、安全机制、API 一览
+- [docs/09_DEPLOYMENT.md](docs/09_DEPLOYMENT.md)：Docker 与裸机两条部署路径、环境变量表、备份/升级、已知限制
+- [docs/10_VERIFICATION_MANUAL.md](docs/10_VERIFICATION_MANUAL.md)：自动化验证命令与预期输出 + Windows Desktop 人工验收清单（含压缩页专项）+ 记录模板
+- [docs/11_OPEN_ISSUES.md](docs/11_OPEN_ISSUES.md)：遗留问题台账（阻塞/安全/功能/工程四类 + WONTFIX 理由）
+
+### 12.3 回归
+
+backend **87 passed**（79 + 8 个 P1 测试）；renderer **45/45**；`validate_fixtures.py` PASS。

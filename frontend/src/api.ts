@@ -90,6 +90,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirmationToken: token, baseVersion }),
     }),
+  rollback: (id: string, targetVersion: number, baseVersion: number) =>
+    request(`/api/v1/diagrams/${encodeURIComponent(id)}/rollback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetVersion, baseVersion }),
+    }),
   exportUrl: (id: string, version?: number) =>
     `/api/v1/diagrams/${encodeURIComponent(id)}/export/drawio${version ? `?version=${version}` : ''}`,
 };

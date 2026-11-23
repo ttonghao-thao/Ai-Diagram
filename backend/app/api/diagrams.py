@@ -1,10 +1,13 @@
 """Phase 1 API: diagrams, versions, validation, layout, export, parse (docs/04 section 1)."""
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from app.api.envelope import ok
@@ -274,10 +277,24 @@ async def export_drawio(request: Request, diagram_id: str, version: Optional[int
     v = version if version is not None else diagram.current_version
     if v <= 0:
         raise ApiException(ErrorCode.VERSION_NOT_FOUND, f"diagram '{diagram_id}' has no versions yet")
-    content, sha256 = state.version_store.read_drawio(diagram_id, v)
+    row = state.db.get_version(diagram_id, v)
+    if row is None:
+        raise ApiException(ErrorCode.VERSION_NOT_FOUND, f"diagram '{diagram_id}' has no version {v}")
+    sha256 = row.sha256
     filename = f"{diagram_id}_v{v:04d}.drawio"
-    return Response(
-        content=content,
+
+    def _iter_file(path: str, chunk_size: int = 256 * 1024):
+        # Stream from disk in chunks instead of loading the whole artifact
+        # into memory (docs/04 section 1: downloads must stream).
+        with open(path, "rb") as fh:
+            while True:
+                chunk = fh.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+
+    return StreamingResponse(
+        _iter_file(row.drawio_path),
         media_type="application/xml",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
@@ -285,6 +302,53 @@ async def export_drawio(request: Request, diagram_id: str, version: Optional[int
             "X-Diagram-Version": str(v),
         },
     )
+
+
+class RollbackRequest(BaseModel):
+    targetVersion: int = Field(ge=1)
+    baseVersion: int = Field(ge=1)
+
+
+@router.post("/diagrams/{diagram_id}/rollback")
+async def rollback_diagram(request: Request, diagram_id: str, body: RollbackRequest) -> Dict[str, Any]:
+    """Roll back by creating a new version pointing at the target version's
+    content (docs/04 section 5.5). History is never rewritten and the current
+    version is checked against baseVersion first."""
+    state = _get_state(request)
+    diagram = state.db.get_diagram(diagram_id)
+    if diagram is None:
+        raise ApiException(ErrorCode.DIAGRAM_NOT_FOUND, f"diagram '{diagram_id}' does not exist")
+    if body.baseVersion != diagram.current_version:
+        raise ApiException(
+            ErrorCode.VERSION_CONFLICT,
+            f"baseVersion {body.baseVersion} does not match current version {diagram.current_version}",
+            {"currentVersion": diagram.current_version, "baseVersion": body.baseVersion},
+        )
+    target_row = state.db.get_version(diagram_id, body.targetVersion)
+    if target_row is None:
+        raise ApiException(
+            ErrorCode.VERSION_NOT_FOUND,
+            f"diagram '{diagram_id}' has no version {body.targetVersion} to roll back to",
+        )
+    graph = json.loads(Path(target_row.graph_path).read_text(encoding="utf-8"))
+    xml_bytes = Path(target_row.drawio_path).read_bytes()  # verbatim artifact
+    row = state.version_store.commit_new_version(
+        diagram_id=diagram_id,
+        diagram_name=diagram.name,
+        diagram_type=diagram.diagram_type,
+        graph=graph,
+        drawio_bytes=xml_bytes,
+        origin="rollback",
+        expected_base_version=body.baseVersion,
+        manifest_extra={"rolledBackTo": body.targetVersion},
+    )
+    return ok(request, {
+        "version": {
+            "version": row.version, "parentVersion": row.parent_version, "origin": row.origin,
+            "sha256": row.sha256, "createdAt": row.created_at,
+        },
+        "rolledBackTo": body.targetVersion,
+    })
 
 
 @router.post("/diagrams/parse")

@@ -159,6 +159,22 @@ def _parse_geometry(geo_el: Optional[ET.Element]) -> Optional[ParsedGeometry]:
     )
 
 
+def guard_no_dtd(data: bytes, max_bytes: int) -> None:
+    """Reject oversized buffers and any DOCTYPE/ENTITY declaration anywhere in
+    the document. ElementTree does not fetch external entities, but declared
+    payloads have no business in user uploads at all (docs/04 section 6)."""
+    if len(data) > max_bytes:
+        raise ApiException(
+            ErrorCode.DRAWIO_UPLOAD_TOO_LARGE,
+            f"file is {len(data)} bytes, exceeds the {max_bytes}-byte limit",
+        )
+    if _DOCTYPE_PATTERN.search(data):
+        raise ApiException(
+            ErrorCode.DRAWIO_PARSE_FAILED,
+            "XML declares a DOCTYPE/ENTITY; external entities are not accepted",
+        )
+
+
 def normalize_to_uncompressed(data: bytes, max_cells: int = 5000, max_bytes: int = 10 * 1024 * 1024) -> Tuple[bytes, bool]:
     """Rewrite a single-page mxfile so its diagram content is uncompressed.
 
@@ -173,11 +189,7 @@ def normalize_to_uncompressed(data: bytes, max_cells: int = 5000, max_bytes: int
             ErrorCode.DRAWIO_UPLOAD_TOO_LARGE,
             f"file is {len(data)} bytes, exceeds the {max_bytes}-byte limit",
         )
-    if _DOCTYPE_PATTERN.search(data[:4096]) or _DOCTYPE_PATTERN.search(data[-512:]):
-        raise ApiException(
-            ErrorCode.DRAWIO_PARSE_FAILED,
-            "XML declares a DOCTYPE/ENTITY; external entities are not accepted",
-        )
+    guard_no_dtd(data, max_bytes)
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
@@ -226,11 +238,7 @@ def parse_drawio_bytes(data: bytes, max_cells: int = 5000, max_bytes: int = 10 *
             ErrorCode.DRAWIO_UPLOAD_TOO_LARGE,
             f"upload is {len(data)} bytes, exceeds the {max_bytes}-byte limit",
         )
-    if _DOCTYPE_PATTERN.search(data[:4096]) or _DOCTYPE_PATTERN.search(data[-512:]):
-        raise ApiException(
-            ErrorCode.DRAWIO_PARSE_FAILED,
-            "XML declares a DOCTYPE/ENTITY; external entities are not accepted",
-        )
+    guard_no_dtd(data, max_bytes)
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
