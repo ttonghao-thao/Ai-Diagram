@@ -44,6 +44,9 @@ LLM_ENABLED=false python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --a
 | `MAX_DRAWIO_UPLOAD_BYTES` / `MAX_XML_CELLS` | 10MB / 5000 | 上传安全上限 |
 | `FRONTEND_DIST` | `frontend/dist` | 静态工作台目录 |
 
+> ⚠️ **路径类变量（RENDERER_CLI / STORAGE_ROOT / DATABASE_PATH / FRONTEND_DIST / ICONS_DIR）覆盖时必须使用绝对路径，且容器部署建议保持注释**：compose 的 env_file 会覆盖镜像内置的正确绝对路径，相对路径（如 `./renderer/...`）在容器内不存在——这是首次容器部署失败的根因之一（见 docs/11 B-2 与报告 §12.5）。
+| `FRONTEND_DIST` | `frontend/dist` | 静态工作台目录 |
+
 ## 4. 数据、备份与升级
 
 - 备份 = 备份 `STORAGE_ROOT` 整个目录（含 `studio.db` 与 `diagrams/<id>/vNNNN/` 快照）；版本文件只增不改，增量备份即可
