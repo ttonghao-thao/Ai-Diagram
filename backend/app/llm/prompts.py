@@ -31,6 +31,8 @@ PARSE_GRAPH_SYSTEM_PROMPT = """你是一个严格的网络/业务拓扑结构化
 7. 不要发明 groups（除非用户明确描述了分区/区域及其成员）；diagramId 由用户描述生成合法 id（^[A-Za-z][A-Za-z0-9_-]{0,63}$）；layout.algorithm 固定为 "layered"，direction 固定为 "DOWN"，preserveManualPositions 为 true。
 8. schemaVersion 固定为 "1.0"；nodes/groups/edges 必须存在（可为空数组）；所有 id 全局唯一。
 9. 字段白名单：node 只允许 id/label/kind/groupId/properties/geometry/manualLocked/style/origin；edge 只允许 id/source/target/kind/direction/label/sourcePort/targetPort/waypoints/style（**边没有 properties 字段**）；group 只允许 id/label/parentId/geometry/manualLocked/style；顶层只允许 schemaVersion/diagramId/name/diagramType/nodes/groups/edges/layout/metadata/warnings。不要添加任何白名单之外的字段（如 explanation、notes）。
+10. 语言一致：label、name、连线 label 必须使用用户输入的原文语言和原文措辞。用户写“核心交换机”就写“核心交换机”，不要翻译成 Core Switch。
+11. 连线标签：物理连线（kind="physical"）默认不写 label；只有用户明确说出了链路名称、带宽或用途时才填写。不要添加 Connection、Uplink、连接、上联 之类自行编造的泛称标签。
 
 JSON Schema（GraphDocument v1）：
 {schema}

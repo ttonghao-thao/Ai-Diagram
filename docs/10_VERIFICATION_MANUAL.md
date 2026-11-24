@@ -11,13 +11,13 @@
 python3 scripts/validate_fixtures.py
 # 预期：3 行 PASS + "NOTE: Windows draw.io Desktop ... still required"
 
-# ② 渲染器套件（构建 + 45 个测试，并产出 out/*.drawio 交付物）
+# ② 渲染器套件（构建 + 64 个测试，并产出 out/*.drawio 交付物）
 cd renderer && npm test
-# 预期：# tests 45 / # pass 45 / # fail 0
+# 预期：# tests 64 / # pass 64 / # fail 0
 
-# ③ 后端套件（79 个测试：校验 + API + 回导/Patch + P1 加固 + 模板同步）
+# ③ 后端套件（108 个测试：校验 + API + 回导/Patch + 加固 + 主题同步）
 cd ../backend && python3 -m pytest
-# 预期：79 passed
+# 预期：108 passed
 
 # ④ 交付物复验（标准 XML 解析器）
 python3 -m pytest tests/test_render_output.py
@@ -46,8 +46,8 @@ python3 -m pytest tests/test_render_output.py
 1. 从工作台（或 `out/` 目录）取得 `network.drawio`、`business.drawio`，核对 SHA-256 与报告 §11.4 一致
 2. 打开后逐项确认：
    - [ ] 所有节点/分组/连线可**单独选中、拖动、缩放**；无对象合并为图片
-   - [ ] 图标专业性：云=云朵、防火墙=砖墙火焰、交换机=机箱、服务器=机架、数据库=存储阵列、终端=终端设备、服务=流程框
-   - [ ] 物理连线无箭头；业务图逻辑线虚线带箭头、数据流双向；连线锚点吸附图标轮廓
+   - [ ] 图标：网络拓扑图为 draw.io 内置 Cisco 风格（实心蓝：交换机=Route Switch Processor、防火墙=砖墙+箭头、服务器=塔式、云=白底描边）；业务架构图为线稿风格
+   - [ ] 网络图连线为细黑直线、无箭头无标签；层级自上而下为 公网→防火墙→核心交换机→服务器；业务图逻辑线虚线带箭头、数据流双向
    - [ ] 中文标签完整显示于图标下方，无截断乱码
 3. 编辑并保存：改一个节点名 → 拖动位置 → 改一条连线端点 → 保存 → 重新打开无丢失
 

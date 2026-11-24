@@ -9,6 +9,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  CISCO_ALIAS_REGISTRY,
+  CISCO_ICON_REGISTRY,
   ICON_REGISTRY,
   LABEL_BAND_HEIGHT,
   dataUriToSvg,
@@ -23,6 +25,7 @@ import { layoutGraph } from '../src/layout/elkLayout.js';
 import { serializeDrawio } from '../src/drawio/xmlWriter.js';
 import { parseDrawioXml } from '../src/drawio/xmlReader.js';
 import { GraphDocument, GraphNode, NodeKind } from '../src/types.js';
+import { composeEdgeStyle } from '../src/shapes/styles.js';
 
 const ALL_KINDS: NodeKind[] = [
   'switch', 'router', 'firewall', 'server', 'vm', 'cloud', 'service', 'database', 'client', 'generic',
@@ -199,8 +202,9 @@ test('layout reserves the label band below icons (icon box kept in geometry)', a
   };
   const layout = await layoutGraph(doc);
   const geo = layout.geometries.get('n_sw')!;
-  assert.equal(geo.height, ICON_REGISTRY.switch.height);
-  assert.ok(geo.width >= ICON_REGISTRY.switch.width);
+  // network_topology defaults to the cisco theme (Route Switch Processor icon)
+  assert.equal(geo.height, CISCO_ICON_REGISTRY.switch!.height);
+  assert.ok(geo.width >= CISCO_ICON_REGISTRY.switch!.width);
 });
 
 test('generated XML embeds stencil icons, aiKind, anchors and labels (roundtrip parse)', async () => {
@@ -222,15 +226,19 @@ test('generated XML embeds stencil icons, aiKind, anchors and labels (roundtrip 
   const xml = serializeDrawio(doc, layout);
   const parsed = parseDrawioXml(xml);
   const sw = parsed.cellById.get('n_sw')!;
-  assert.ok(sw.style?.includes('shape=mxgraph.networks.switch'));
+  assert.ok(sw.style?.includes('shape=mxgraph.cisco.misc.route_switch_processor'));
+  assert.ok(sw.style?.includes('fillColor=#036897'));
   assert.ok(sw.style?.includes('aiKind=switch'));
   assert.equal(sw.value, '核心交换机');
   const prn = parsed.cellById.get('n_prn')!;
   assert.ok(prn.style?.includes('aiKind=generic'));
   assert.ok(prn.style?.includes('aiDeviceType=printer'));
   const l1 = parsed.cellById.get('e_l1')!;
-  assert.ok(l1.style?.includes('exitX=0.5;exitY=1'));
-  assert.ok(l1.style?.includes('entryX=0.5;entryY=0'));
+  // cisco theme: straight thin line, no arrows, no fixed anchors
+  assert.ok(l1.style?.includes('endArrow=none'));
+  assert.ok(l1.style?.includes('aiKind=physical;aiDirection=undirected'));
+  assert.ok(!l1.style?.includes('edgeStyle=orthogonalEdgeStyle'));
+  assert.ok(!l1.style?.includes('exitX='));
 });
 
 test('horizontal neighbours get side anchors; no anchors for coincident centers', () => {
@@ -302,6 +310,95 @@ test('alias kinds survive a render->import roundtrip', async () => {
   const xml = serializeDrawio(doc, layout);
   const parsed = parseDrawioXml(xml);
   const lbStyle = parsed.cellById.get('n_lb')!.style ?? '';
-  assert.ok(lbStyle.includes('shape=mxgraph.networks.load_balancer'));
+  assert.ok(lbStyle.includes('shape=mxgraph.cisco.directors.localdirector'));
   assert.ok(lbStyle.includes('aiDeviceType=load_balancer'));
+});
+
+// ---------------------------------------------------------------------------
+// Icon themes: cisco (default for network topology) vs networks
+// ---------------------------------------------------------------------------
+
+test('network topology resolves through the cisco theme by default', () => {
+  const cases: Array<[NodeKind, string]> = [
+    ['cloud', 'storage.cloud'],
+    ['router', 'routers.router'],
+    ['firewall', 'security.ios_firewall'],
+    ['switch', 'misc.route_switch_processor'],
+    ['server', 'servers.server_with_router'],
+    ['database', 'storage.relational_database'],
+    ['client', 'computers_and_peripherals.pc'],
+  ];
+  for (const [kind, id] of cases) {
+    const icon = resolveNodeIcon({ id: 'x', label: 'x', kind }, { theme: 'cisco' });
+    assert.ok(icon.style.includes(`shape=mxgraph.cisco.${id};`), `${kind} -> ${id}`);
+    if (kind !== 'cloud') {
+      assert.ok(icon.style.includes('fillColor=#036897'), `${kind} cisco blue`);
+    }
+  }
+});
+
+test('cisco cloud is an outline cloud with the label inside', () => {
+  const icon = resolveNodeIcon({ id: 'c', label: '公网', kind: 'cloud' }, { theme: 'cisco' });
+  assert.ok(icon.style.includes('fillColor=#FFFFFF'));
+  assert.ok(icon.style.includes('verticalAlign=middle'));
+  assert.ok(!icon.style.includes('verticalLabelPosition=bottom'));
+});
+
+test('cisco aliases fall back to the networks alias registry when unmapped', () => {
+  const vpn = resolveNodeIcon({ id: 'v', label: 'VPN', kind: 'generic', properties: { deviceType: 'vpn_gateway' } }, { theme: 'cisco' });
+  assert.ok(vpn.style.includes('shape=mxgraph.cisco.hubs_and_gateways.vpn_gateway'));
+  const proxy = resolveNodeIcon({ id: 'p', label: '代理', kind: 'generic', properties: { deviceType: 'proxy' } }, { theme: 'cisco' });
+  assert.ok(proxy.style.includes('shape=mxgraph.networks.proxy_server'));
+  // kinds without a cisco entry keep their flat/networks icon
+  const generic = resolveNodeIcon({ id: 'g', label: '未知', kind: 'generic' }, { theme: 'cisco' });
+  assert.ok(generic.style.includes('fillColor=#FFF2CC'));
+});
+
+test('document theme: network_topology -> cisco, metadata and node overrides win', async () => {
+  const base: GraphDocument = {
+    schemaVersion: '1.0', diagramId: 't', name: 't', diagramType: 'network_topology',
+    nodes: [{ id: 'fw', label: '防火墙', kind: 'firewall' }], groups: [], edges: [],
+    layout: { algorithm: 'layered', direction: 'DOWN', preserveManualPositions: true },
+  };
+  const shapeOf = async (doc: GraphDocument) =>
+    parseDrawioXml(serializeDrawio(doc, await layoutGraph(doc))).cellById.get('n_fw')!.style ?? '';
+
+  assert.ok((await shapeOf(base)).includes('shape=mxgraph.cisco.security.ios_firewall'));
+  // metadata.iconTheme opts the whole diagram out
+  const optedOut: GraphDocument = { ...base, metadata: { iconTheme: 'networks' } };
+  assert.ok((await shapeOf(optedOut)).includes('shape=mxgraph.networks.firewall'));
+  // node.style.iconTheme overrides one node (and is not emitted as a style key)
+  const perNode: GraphDocument = {
+    ...base,
+    nodes: [{ id: 'fw', label: '防火墙', kind: 'firewall', style: { iconTheme: 'networks' } }],
+  };
+  const style = await shapeOf(perNode);
+  assert.ok(style.includes('shape=mxgraph.networks.firewall'));
+  assert.ok(!style.includes('iconTheme'));
+});
+
+test('business architecture keeps the networks/flat theme and orthogonal edges', async () => {
+  const doc: GraphDocument = {
+    schemaVersion: '1.0', diagramId: 'b', name: 'b', diagramType: 'business_architecture',
+    nodes: [
+      { id: 'svc', label: '内容服务', kind: 'service' },
+      { id: 'db', label: '内容库', kind: 'database' },
+    ],
+    groups: [],
+    edges: [{ id: 'e1', source: 'svc', target: 'db', kind: 'dataflow', direction: 'bidirectional', label: '读写' }],
+    layout: { algorithm: 'layered', direction: 'DOWN', preserveManualPositions: true },
+  };
+  const parsed = parseDrawioXml(serializeDrawio(doc, await layoutGraph(doc)));
+  assert.ok(parsed.cellById.get('n_svc')!.style?.includes('shape=process'));
+  assert.ok(parsed.cellById.get('n_db')!.style?.includes('shape=mxgraph.networks.storage'));
+  const edge = parsed.cellById.get('e_e1')!.style ?? '';
+  assert.ok(edge.includes('edgeStyle=orthogonalEdgeStyle'));
+  assert.ok(edge.includes('startArrow=block') && edge.includes('endArrow=block'));
+});
+
+test('cisco non-physical edges keep arrows and labels on straight lines', () => {
+  const style = composeEdgeStyle('dataflow', 'forward', undefined, 'cisco');
+  assert.ok(style.includes('endArrow=block') && style.includes('startArrow=none'));
+  assert.ok(!style.includes('edgeStyle=orthogonalEdgeStyle'));
+  assert.ok(composeEdgeStyle('logical', 'forward', undefined, 'cisco').includes('dashed=1'));
 });

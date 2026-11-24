@@ -456,6 +456,25 @@ export class Validator {
         preserveManualPositions: true,
       },
     };
+    // Metadata is validated above and must reach the renderer: it carries
+    // document-level options such as `iconTheme`.
+    if (isPlainObject(root.metadata) && Object.values(root.metadata).every(isMetadataValue)) {
+      doc.metadata = root.metadata as Record<string, MetadataValue>;
+    }
+    if (isPlainObject(root.layout)) {
+      // Carry the caller's layout spec through (shape validated above).
+      // Before this, direction/algorithm were silently replaced by DOWN/layered.
+      const l = root.layout;
+      if (typeof l.algorithm === 'string' && LAYOUT_ALGORITHMS.includes(l.algorithm as LayoutAlgorithm)) {
+        doc.layout.algorithm = l.algorithm as LayoutAlgorithm;
+      }
+      if (typeof l.direction === 'string' && LAYOUT_DIRECTIONS.includes(l.direction as LayoutDirection)) {
+        doc.layout.direction = l.direction as LayoutDirection;
+      }
+      if (typeof l.preserveManualPositions === 'boolean') {
+        doc.layout.preserveManualPositions = l.preserveManualPositions;
+      }
+    }
     this.checkSemantics(doc);
 
     if (this.errors.length) {

@@ -47,6 +47,42 @@ ALIAS_STYLES = {
     "rack": "shape=mxgraph.networks.rack;",
 }
 
+# Cisco theme (default for network_topology): solid-blue legacy Cisco stencils.
+# Mirrors CISCO_ICON_REGISTRY / CISCO_ALIAS_REGISTRY in
+# renderer/src/shapes/iconRegistry.ts; ids verified in drawio v24.7.17
+# stencils/cisco/<section>.xml. Kept in sync by tests/test_phase_p1.py.
+CISCO_BLUE = "#036897"
+
+
+def _cisco(shape_id: str, *, fill: str = CISCO_BLUE, stroke: str = "#FFFFFF",
+           label_inside: bool = False) -> str:
+    style = (
+        f"sketch=0;outlineConnect=0;html=1;fillColor={fill};strokeColor={stroke};"
+        f"pointerEvents=1;shape=mxgraph.cisco.{shape_id};"
+    )
+    if label_inside:
+        return style + "verticalAlign=middle;align=center;fontColor=#000000;"
+    return style + "verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+
+
+# Cisco styles already carry their label placement (cloud: label inside).
+CISCO_NODE_STYLES = {
+    "cloud": _cisco("storage.cloud", fill="#FFFFFF", stroke="#000000", label_inside=True),
+    "router": _cisco("routers.router"),
+    "firewall": _cisco("security.ios_firewall"),
+    "switch": _cisco("misc.route_switch_processor"),
+    "server": _cisco("servers.server_with_router"),
+    "vm": _cisco("servers.software_based_server"),
+    "database": _cisco("storage.relational_database"),
+    "client": _cisco("computers_and_peripherals.pc"),
+}
+CISCO_ALIAS_STYLES = {
+    "access_point": _cisco("misc.access_point"),
+    "load_balancer": _cisco("directors.localdirector"),
+    "vpn_gateway": _cisco("hubs_and_gateways.vpn_gateway"),
+    "hub": _cisco("hubs_and_gateways.cisco_hub"),
+}
+
 EDGE_BASE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;"
 
 GROUP_STYLE = (
@@ -62,15 +98,44 @@ def _fmt(n: Any) -> str:
     return str(int(n)) if n.is_integer() else str(round(n, 2))
 
 
-def _node_style(node: Any) -> str:
+def _doc_theme(graph: GraphDocument) -> str:
+    """network_topology -> cisco by default; metadata.iconTheme overrides."""
+    override = (graph.metadata or {}).get("iconTheme")
+    if override in ("cisco", "networks"):
+        return override
+    return "cisco" if graph.diagramType == "network_topology" else "networks"
+
+
+def _node_theme(node: Any, doc_theme: str) -> str:
+    override = (node.style or {}).get("iconTheme")
+    return override if override in ("cisco", "networks") else doc_theme
+
+
+def _node_style(node: Any, doc_theme: str = "networks") -> str:
     kind = node.kind if isinstance(node.kind, str) else "generic"
     device_type = (node.properties or {}).get("deviceType")
-    if kind == "generic" and isinstance(device_type, str) and device_type in ALIAS_STYLES:
+    device_type = device_type.lower() if isinstance(device_type, str) else ""
+    theme = _node_theme(node, doc_theme)
+    cisco_style = False
+    if theme == "cisco":
+        if kind == "generic" and device_type in CISCO_ALIAS_STYLES:
+            base = CISCO_ALIAS_STYLES[device_type]
+            cisco_style = True
+        elif kind == "generic" and device_type in ALIAS_STYLES:
+            base = ALIAS_STYLES[device_type]  # alias without a Cisco icon
+        elif kind in CISCO_NODE_STYLES:
+            base = CISCO_NODE_STYLES[kind]
+            cisco_style = True
+        else:
+            base = NODE_STYLES.get(kind, NODE_STYLES["generic"])
+    elif kind == "generic" and device_type in ALIAS_STYLES:
         base = ALIAS_STYLES[device_type]  # patch-added alias nodes keep their stencil
     else:
         base = NODE_STYLES.get(kind, NODE_STYLES["generic"])
-    parts = [base, "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;", f"aiKind={kind};"]
-    device_type = (node.properties or {}).get("deviceType")
+    parts = [base]
+    if not cisco_style:
+        parts.append("verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;")
+    parts.append(f"aiKind={kind};")
     if device_type:
         parts.append(f"aiDeviceType={device_type};")
     return "".join(parts)
@@ -93,8 +158,27 @@ def _anchor_fragment(src_geo: Optional[Dict[str, Any]], tgt_geo: Optional[Dict[s
     return "exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;"
 
 
+def _arrow_fragment(kind: str, direction: str) -> str:
+    if kind == "physical":
+        return "startArrow=none;startFill=0;endArrow=none;endFill=0;"
+    if direction == "bidirectional":
+        return "startArrow=block;startFill=1;endArrow=block;endFill=1;"
+    if direction == "forward":
+        return "startArrow=none;startFill=0;endArrow=block;endFill=1;"
+    return "startArrow=none;startFill=0;endArrow=none;endFill=0;"
+
+
 def _edge_style(kind: str, direction: str, src_geo: Optional[Dict[str, Any]],
-                tgt_geo: Optional[Dict[str, Any]]) -> str:
+                tgt_geo: Optional[Dict[str, Any]], theme: str = "networks") -> str:
+    if theme == "cisco":
+        # Thin straight black line as in draw.io's Cisco templates: no
+        # orthogonal routing, no fixed anchors, no waypoints.
+        parts = ["sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;"]
+        if kind in ("logical", "control", "dependency"):
+            parts.append("dashed=1;")
+        parts.append(_arrow_fragment(kind, direction))
+        parts.append(f"aiKind={kind};aiDirection={direction};")
+        return "".join(parts)
     parts = [EDGE_BASE_STYLE]
     if kind == "physical":
         parts.append("strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;")
@@ -288,6 +372,7 @@ def apply_patch_to_xml(
     """Apply a validated patch to stored XML; returns the new XML bytes."""
     ctx = load_xml_context(xml_bytes, max_cells=max_cells)
     mapper = CellMapper(mapping, old_graph)
+    doc_theme = _doc_theme(new_graph)  # styles follow the renderer's theme rules
     new_nodes = {n.id: n for n in new_graph.nodes}
     new_groups = {g.id: g for g in new_graph.groups}
     new_edges = {e.id: e for e in new_graph.edges}
@@ -307,7 +392,7 @@ def apply_patch_to_xml(
             inner = ET.Element("mxCell", {
                 "id": cell_id,
                 "value": node.label,
-                "style": _node_style(node),
+                "style": _node_style(node, doc_theme),
                 "vertex": "1",
                 "parent": parent_cell,
             })
@@ -371,14 +456,14 @@ def apply_patch_to_xml(
             inner = ET.Element("mxCell", {
                 "id": cell_id,
                 "value": edge.label or "",
-                "style": _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt)),
+                "style": _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt), doc_theme),
                 "edge": "1",
                 "parent": "1",
                 "source": mapper.node_cell(edge.source),
                 "target": mapper.node_cell(edge.target),
             })
             geo = ET.SubElement(inner, "mxGeometry", {"relative": "1", "as": "geometry"})
-            if edge.waypoints:
+            if edge.waypoints and doc_theme != "cisco":  # cisco edges are straight lines
                 arr = ET.SubElement(geo, "Array", {"as": "points"})
                 for p in edge.waypoints:
                     ET.SubElement(arr, "mxPoint", {"x": _fmt(p["x"]), "y": _fmt(p["y"])})
@@ -405,11 +490,12 @@ def apply_patch_to_xml(
                 # the XML stays consistent with the graph (docs/02 section 8).
                 src = new_nodes[edge.source]
                 tgt = new_nodes[edge.target]
-                inner.set("style", _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt)))
+                inner.set("style", _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt), doc_theme))
             elif "source" in changes or "target" in changes:
                 # Endpoints moved to different nodes: refresh only the anchor
                 # keys, keeping the rest of the user's style untouched.
-                _refresh_edge_anchors(inner, _node_geo(new_nodes[edge.source]), _node_geo(new_nodes[edge.target]))
+                if doc_theme != "cisco":  # straight-line edges carry no anchor keys
+                    _refresh_edge_anchors(inner, _node_geo(new_nodes[edge.source]), _node_geo(new_nodes[edge.target]))
             if "waypoints" in changes:
                 geo = _ensure_geometry(inner)
                 for arr in list(geo.findall("Array")):

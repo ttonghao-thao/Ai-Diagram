@@ -135,20 +135,23 @@ test('kind styles and physical undirected edges are reflected in the XML', async
   const { doc, xml } = await renderToFile('network.graph.json', 'network-check-style.drawio');
   const parsed = parseDrawioXml(xml);
   const fw = parsed.cellById.get(nodeCellId('firewall'));
-  assert.ok(fw?.style?.includes('shape=mxgraph.networks.firewall'));
+  // network_topology defaults to the cisco theme (verified draw.io stencils)
+  assert.ok(fw?.style?.includes('shape=mxgraph.cisco.security.ios_firewall'));
   assert.ok(fw?.style?.includes('aiKind=firewall'));
   const cloud = parsed.cellById.get(nodeCellId('wan'));
-  assert.ok(cloud?.style?.includes('shape=mxgraph.networks.cloud'));
+  assert.ok(cloud?.style?.includes('shape=mxgraph.cisco.storage.cloud'));
+  assert.ok(cloud?.style?.includes('verticalAlign=middle'));  // label inside the cloud
   const server = parsed.cellById.get(nodeCellId('server_01'));
-  assert.ok(server?.style?.includes('shape=mxgraph.networks.server'));
+  assert.ok(server?.style?.includes('shape=mxgraph.cisco.servers.server_with_router'));
   const phys = parsed.cellById.get(edgeCellId('wan_to_fw'));
   assert.ok(phys?.style?.includes('endArrow=none'));
   // Semantic markers enable lossless edge-type round-trips (Phase 2 importer).
   assert.ok(phys?.style?.includes('aiKind=physical;aiDirection=undirected'));
-  // Vertical top-down layout: fixed directional anchors leave the source at
-  // its bottom edge and enter the target at its top edge.
-  assert.ok(phys?.style?.includes('exitX=0.5;exitY=1'));
-  assert.ok(phys?.style?.includes('entryX=0.5;entryY=0'));
+  // Cisco theme: straight thin black line without routing or fixed anchors.
+  assert.ok(phys?.style?.includes('strokeColor=#000000'));
+  assert.ok(!phys?.style?.includes('edgeStyle=orthogonalEdgeStyle'));
+  assert.ok(!phys?.style?.includes('exitX='));
+  assert.ok(!phys?.style?.includes('entryX='));
   assert.equal(doc.nodes.length, 6);
   // Style assertions are done in memory; remove the scratch file.
   rmSync(path.join(OUT_DIR, 'network-check-style.drawio'), { force: true });

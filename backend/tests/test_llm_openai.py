@@ -204,3 +204,42 @@ def test_parse_prompt_states_edge_field_whitelist() -> None:
     system = parse_graph_system_prompt()
     assert "边没有 properties 字段" in system
     assert "字段白名单" in system
+
+
+def test_generic_physical_link_labels_are_dropped_explicit_ones_kept() -> None:
+    """Live qwen output invented 'Connection' / 'Uplink' labels on physical
+    links. Generic labels are removed; anything the user actually named and
+    labels on non-physical edges are untouched."""
+    from app.llm.adapter import is_generic_edge_label, normalize_llm_graph_draft
+
+    for generic in ["Connection", "Uplink", "Internet Connection", "连接", "上联", "物理链路", "NETWORK LINK"]:
+        assert is_generic_edge_label(generic), generic
+    for explicit in ["Trunk 上联", "千兆光纤", "出口链路", "读写", "专线", "", None]:
+        assert not is_generic_edge_label(explicit), explicit
+
+    draft = {
+        "schemaVersion": "1.0", "diagramId": "t", "name": "t", "diagramType": "network_topology",
+        "nodes": [
+            {"id": "sw", "label": "核心交换机", "kind": "switch"},
+            {"id": "s1", "label": "服务器 1", "kind": "server"},
+            {"id": "db", "label": "数据库", "kind": "database"},
+        ],
+        "groups": [],
+        "edges": [
+            {"id": "e1", "source": "sw", "target": "s1", "kind": "physical", "direction": "undirected", "label": "Connection"},
+            {"id": "e2", "source": "sw", "target": "s1", "kind": "physical", "direction": "undirected", "label": "Trunk 上联"},
+            {"id": "e3", "source": "s1", "target": "db", "kind": "dataflow", "direction": "bidirectional", "label": "连接"},
+        ],
+        "layout": {"algorithm": "layered", "direction": "DOWN", "preserveManualPositions": True},
+    }
+    out = normalize_llm_graph_draft(draft)
+    edges = {e["id"]: e for e in out["edges"]}
+    assert "label" not in edges["e1"]                      # invented generic label removed
+    assert edges["e2"]["label"] == "Trunk 上联"              # explicit label kept
+    assert edges["e3"]["label"] == "连接"                    # non-physical edge: kept
+
+
+def test_parse_prompt_requires_user_language_and_no_physical_labels() -> None:
+    system = parse_graph_system_prompt()
+    assert "原文语言" in system and "Core Switch" in system
+    assert "物理连线" in system and "默认不写 label" in system

@@ -359,8 +359,11 @@ def test_p01_patch_adds_nodes_and_edges_preserving_layout(app_client) -> None:
     assert cells["n_srv_new_1"].get("parent") == "g_server_zone"
     assert cells["e_link_new_1"].get("source") == "n_core_switch"
     assert cells["e_link_new_1"].get("target") == "n_srv_new_1"
-    assert "shape=mxgraph.networks.server" in cells["n_srv_new_1"].get("style")
+    assert "shape=mxgraph.cisco.servers.server_with_router" in cells["n_srv_new_1"].get("style")
     assert "aiKind=server" in cells["n_srv_new_1"].get("style")
+    # new edge follows the cisco theme: straight black line, no routing
+    assert "strokeColor=#000000" in cells["e_link_new_1"].get("style")
+    assert "edgeStyle=orthogonalEdgeStyle" not in cells["e_link_new_1"].get("style")
 
     # Applying the same token twice fails (one-time consumption).
     again = client.post("/api/v1/diagrams/sample_network/patch/apply", json={
@@ -419,15 +422,18 @@ def test_p03_edge_reconnection_requires_confirmation(app_client) -> None:
     cell = next(c for c in root.findall("mxCell") if c.get("id") == "e_core_to_s3")
     assert cell.get("target") == "n_server_01"
     # Kind/direction change rebuilds the visual style (P0-2 fix): dataflow
-    # arrows/colors replace the physical no-arrow style, markers updated.
+    # arrows replace the physical no-arrow style, markers updated. The
+    # network_topology default is the cisco theme (thin black line).
     style = cell.get("style")
     assert "endArrow=block" in style and "startArrow=none" in style
-    assert "strokeColor=#4A7E53" in style
+    assert "strokeColor=#000000" in style
     assert "aiKind=dataflow;aiDirection=forward" in style
+    assert "edgeStyle=orthogonalEdgeStyle" not in style
 
 
 def test_p03_endpoint_only_change_refreshes_anchors_keeps_style(app_client) -> None:
-    """Pure reconnect keeps the user style and only refreshes anchor keys."""
+    """Pure reconnect keeps the user style (no restyle); cisco-theme edges are
+    straight lines, so no anchor keys are added."""
     client, _ = app_client
     _create(client)
     patch = {
@@ -447,7 +453,8 @@ def test_p03_endpoint_only_change_refreshes_anchors_keeps_style(app_client) -> N
     style = cell.get("style")
     assert cell.get("target") == "n_server_03"
     assert "aiKind=physical" in style  # kind untouched -> no restyle
-    assert "exitX=" in style and "entryY=" in style  # anchors still present
+    assert "strokeColor=#000000" in style
+    assert "exitX=" not in style and "entryY=" not in style  # straight line: no anchors
 
 
 def test_p04_locked_object_cannot_be_moved(app_client) -> None:

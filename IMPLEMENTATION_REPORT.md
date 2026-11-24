@@ -515,3 +515,64 @@ additionalProperties:false），3 轮修复均未纠正 → `LLM_INVALID_OUTPUT`
 解决"页面一直解析中、后台无日志"的观测盲区。
 
 新增测试 3 例（幻觉字段单测、含多余字段端到端解析、提示词白名单断言）。backend **101 passed**。
+
+## 16. 网络拓扑布局层级 + Cisco 图标主题（2026-11-24）
+
+用户用"一台核心交换机连接三台服务器，上联防火墙，防火墙连公网"实测后提出两点：层级顺序不对、图标风格要达到
+参考图（draw.io 自带 Cisco 网络模板）的样式。两点均已实现并用官方渲染器出图验收。
+
+### 16.1 布局：无向连线按网络层级定向
+
+- **根因**：模型按句子语序输出连线（核心交换机→服务器、核心交换机→防火墙、防火墙→公网），ELK 自上而下把
+  source 放上、target 放下，于是服务器与防火墙被排到交换机下方同一层、公网在最底。
+- **本地复现**（y 越小越靠上）：核心交换机 40；服务器×3 为 204、防火墙 206（同排）；公网 404。
+- **修复**：`renderer/src/layout/networkTier.ts`——网络拓扑图中 `undirected` 边在**喂给布局引擎前**按层级定向
+  （云 0 → 出口路由 1 → 防火墙 2 → 交换机 3 → 服务器/数据库/终端 4），层级高者为 source。语义图与 XML 的
+  source/target **完全不变**（有测试断言）；有向边保持声明方向；UP/LEFT 方向做了镜像处理。这正是 docs/03 §1
+  早已写明的位置模板（位置模板不是业务事实，不补造 Edge）。
+- **同层顺序**：启用 ELK `crossingMinimization.forceNodeModelOrder`，服务器 1/2/3 按输入顺序从左到右
+  （原先为 3/1/2）。取舍：让出部分交叉最小化，密集图连线交叉可能略多（docs/11 Q-10）。
+- **验收坐标**：公网 40 → 防火墙 241 → 核心交换机 430 → 服务器 1/2/3 同排 621（x = 40 / 165 / 290）。
+
+### 16.2 样式：Cisco 图标主题
+
+- **根因**：此前映射到 draw.io 内置 **Networks** 库（黑白线稿）；参考图用的是 draw.io 内置的另一套
+  **Cisco** 库（`mxgraph.cisco.<分区>.<形状>`，实心蓝 `#036897` + 白色线条）。两套 Desktop 都自带，无需外部素材。
+- **核实**：通过 GitHub API 取得 drawio v24.7.17 `stencils/cisco/*.xml` 的形状定义，并用官方 viewer 渲染
+  60 余个候选与参考图放大比对，映射全部精确对上：
+
+| 设备 | Cisco 形状 | 与参考图 |
+|---|---|---|
+| 交换机 | `misc.route_switch_processor` | 一致（库中原名 Route Switch Processor） |
+| 防火墙 | `security.ios_firewall` | 一致 |
+| 路由器 | `routers.router` | 一致 |
+| 云 / 公网 | `storage.cloud`（白底描边、文字在云内） | 一致 |
+| 服务器 | `servers.server_with_router` | 一致（用户确认选细塔造型） |
+| 数据库 / 终端 / 虚拟机 | `storage.relational_database` / `computers_and_peripherals.pc` / `servers.software_based_server` | 参考图无对应，取语义最接近者 |
+
+- **实现**：Icon Registry 新增 `cisco` 主题（`CISCO_ICON_REGISTRY` / `CISCO_ALIAS_REGISTRY`）；网络拓扑图默认
+  `cisco`，业务架构图保持 `networks`；`metadata.iconTheme` 整图切换、`node.style.iconTheme` 单节点切换。
+  连线为图 2 同款**细黑直线**（无正交弯点、无固定锚头；物理线无箭头；非物理线保留箭头与虚线；标签白底）。
+  Python 侧 `xml_edit` 同步镜像，Patch 新增的节点/连线风格一致；导入器可从 Cisco 形状反推设备类型。
+- **默认自绘 SVG** 移入 `renderer/assets/icons/examples/`（不再自动加载）：它们是 Cisco 映射不存在时的过渡素材，
+  留在顶层会覆盖原生 Cisco 图标（`access_point` / `vpn_gateway`）。
+
+### 16.3 顺带发现并修复的既有问题
+
+| 问题 | 影响 | 修复 |
+|---|---|---|
+| 渲染器 TS 校验器重建文档时丢弃 `metadata`，并把 `layout` 写死为 `layered/DOWN` | 用户设置的 `direction: RIGHT/UP/LEFT`、`algorithm: manual`、`metadata.iconTheme` **一直被静默忽略** | 校验后原样透传（新增 CLI 回归测试） |
+| 间距选项只设在根节点，ELK 不继承进分组容器 | 组内层间距退回默认 20（根层 80），组内堆叠设备拥挤 | 间距选项同时下发给分组（组内 44 → 104） |
+| Cisco 图标标签贴住图案下沿 | 视觉重叠 | 标签 `spacingTop=8` |
+| 标签被译成英文、连线出现自编标签（Connection / Uplink） | 见用户实测图 | 提示词第 10、11 条（原文语言、物理线默认无标签）+ 后端泛称标签清洗（明确命名的标签保留） |
+
+### 16.4 回归与验收
+
+renderer **64 passed**（+16：层级定向、同层顺序、语义不变、有向边、UP/LEFT、主题选择与覆盖、Cisco 别名回退、
+CLI 透传回归）；backend **108 passed**（+7：标签清洗、提示词规则、Cisco 同步、主题覆盖、Patch 风格）。
+视觉验收（官方 viewer 渲染，PNG 见交付）：原句组网图、企业组网模板、业务架构图（保持原样）。
+
+### 16.5 未做 / 待定
+
+- 分组容器仍是实底 swimlane，未改成参考图的虚线框（用户三点确认未涉及，列为可选项 docs/11 Q-11）
+- 层级按设备类型判定：多台防火墙会排到同一层（docs/11 Q-9）

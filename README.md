@@ -67,15 +67,15 @@ python3 scripts/validate_fixtures.py
 # 2) Renderer：Graph JSON -> ELK.js -> 可编辑 .drawio（无 LLM/网络/GPU 依赖）
 cd renderer
 npm install          # 首次；依赖精确锁定（elkjs 0.12.1 / fast-xml-parser 5.12.1 / typescript 5.9.3）
-npm test             # 构建 + 45 个自动化测试，并产出 out/network.drawio、out/business.drawio
-npm run generate:all # 生成两张交付图（专业设备图标）
+npm test             # 构建 + 64 个自动化测试，并产出 out/network.drawio、out/business.drawio
+npm run generate:all # 生成两张交付图（网络拓扑默认 draw.io 内置 Cisco 图标 + 细黑直线；详见 renderer/assets/icons/README.md）
 node dist/src/cli.js generate --input ../fixtures/templates/enterprise_network.graph.json --output ../out/enterprise_network.drawio  # 组网图模板
 node dist/src/cli.js generate --input ../fixtures/network.graph.json --output ../out/network.drawio
 node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icons-dir <自定义SVG目录>
 node dist/src/cli.js validate  --input ../out/network.drawio
 
 # 3) 图模型与语义校验 + Phase 1 API（FastAPI + SQLite + LLM mock）
-cd ../backend && python3 -m pytest   # 87 个测试（G/X + A/V + 文本用例 + I/P + P1 加固/同步）
+cd ../backend && python3 -m pytest   # 108 个测试（G/X + A/V + 文本用例 + I/P + P1 加固/同步）
 
 # 4) Web 工作台（Phase 1/2：生成 / 解析 / 校验 / 版本 / 导入回导 / AI 修改）
 cd ../frontend && npm install && npm run build     # 产物由 FastAPI 静态挂载

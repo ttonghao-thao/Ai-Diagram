@@ -30,6 +30,15 @@ STENCIL_KIND_MAP = {
     "mxgraph.networks.cloud": "cloud",
     "mxgraph.networks.terminal": "client",
     "process": "service",
+    # Cisco theme (default for network_topology); ids mirror xml_edit.CISCO_*_STYLES
+    "mxgraph.cisco.storage.cloud": "cloud",
+    "mxgraph.cisco.routers.router": "router",
+    "mxgraph.cisco.security.ios_firewall": "firewall",
+    "mxgraph.cisco.misc.route_switch_processor": "switch",
+    "mxgraph.cisco.servers.server_with_router": "server",
+    "mxgraph.cisco.servers.software_based_server": "vm",
+    "mxgraph.cisco.storage.relational_database": "database",
+    "mxgraph.cisco.computers_and_peripherals.pc": "client",
 }
 
 

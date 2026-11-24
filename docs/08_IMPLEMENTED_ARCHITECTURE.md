@@ -20,7 +20,8 @@ Linux 服务器（Docker 或裸机，端口 8000）
 │    └── storage/           SQLite 元数据 + 文件版本快照（原子 rename）
 ├── renderer/（TypeScript，构建产物 dist/src/cli.js）
 │    ├── ELK.js layered 首次布局（嵌套组，INCLUDE_CHILDREN 正交路由）
-│    ├── Icon Registry（mxgraph.networks stencil + 自定义 SVG 数据 URI）
+│    ├── 网络层级定向（无向边按 公网→路由→防火墙→交换→服务器 排层，仅影响布局）
+│    ├── Icon Registry（Cisco / Networks 两套内置主题 + 自定义 SVG 数据 URI）
 │    └── drawio XML 写/读器（aiKind/aiDirection 语义标记）
 └── frontend/dist（React 静态页，由 FastAPI 挂载；无画布）
 ```
@@ -30,16 +31,25 @@ Windows draw.io Desktop 是**用户本地编辑器**，不属于服务端部署�
 ## 2. 三条核心数据流
 
 1. **首次生成**：`Graph JSON → Pydantic 校验 → 语义校验 → 渲染子进程（ELK 布局 + XML 序列化）→ reconcile_geometry（把真实渲染坐标写回语义图）→ 原子提交 vNNNN`
+   - 网络拓扑图布局时，**无向连线按设备层级定向**（仅喂给布局引擎，语义图的 source/target 不变）：
+     云/公网 0 → 出口路由 1 → 防火墙 2 → 交换机 3 → 服务器/数据库/终端 4，层级高者在上；
+     同层设备按输入顺序从左到右；有向连线保持声明方向
 2. **Desktop 回导**：`上传 → 流式分块限流 → 安全解析（全文件 DOCTYPE 拒绝/解压上限）→ cell↔graph 映射（aiKind 反推）→ 与当前版本 diff → 令牌预览 → commit：压缩页规范化 + XML 原样入库 + 语义字段（properties/origin/manualLocked）保留`
 3. **AI 增量修改**：`指令（mock/OpenAI）或 patch JSON → patch.schema 校验 → preview（内存副本逐操作应用 + 破坏性确认 + 锚点插入）→ 一次性令牌 → apply：对当前版本 XML 重放 preview + 定向编辑（仅触点 cell）→ 原子提交`
 
 ## 3. 关键约定
 
 - **cell id 映射**：系统对象固定 `n_/g_/e_` 前缀；Desktop 复制产生的异名 cell 以 `imp_` 重映射并写入 manifest `cellMapping`
+- **图标主题**：网络拓扑图默认 `cisco`（draw.io 内置 Cisco 库，实心蓝；细黑直线无箭头连线），
+  业务架构图用 `networks`（线稿 + 正交折线）；`metadata.iconTheme` 可整图切换，`node.style.iconTheme` 可单节点切换
 - **语义标记**：节点/边样式携带 `aiKind`（边另带 `aiDirection`），回导以此无损还原类型；箭头启发式仅为 Desktop 手绘边的回退
 - **坐标模型**：语义图恒为绝对坐标；XML 组内 cell 相对父容器；两侧换算走父链
 - **版本模型**：只增不改；回滚 = 创建指向目标内容的新版本（origin=rollback）；所有修改类操作携带 baseVersion 乐观锁，冲突返回 409 `VERSION_CONFLICT`
 - **存储布局**：`storage/diagrams/<id>/vNNNN/{graph.json, diagram.drawio, manifest.json[, patch.json]}`；上传回导的 XML **原样入库**（压缩页先规范化），XML 为图形事实源
+
+**LLM 草稿清洗**（适配器内，校验之前）：剔除白名单外的字段（如边上的 `properties`）；
+去掉物理连线上模型自编的泛称标签（Connection / 连接 / 上联），用户明确命名的标签（Trunk 上联、千兆光纤）保留。
+提示词约束：标签使用用户原文语言、物理连线默认不加标签、字段白名单。
 
 ## 4. 安全机制（已实现）
 

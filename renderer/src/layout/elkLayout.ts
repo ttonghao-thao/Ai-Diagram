@@ -6,7 +6,8 @@
  */
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { ErrorCodes, RenderError } from '../errors.js';
-import { LABEL_BAND_HEIGHT, resolveNodeSize } from '../shapes/iconRegistry.js';
+import { LABEL_BAND_HEIGHT, resolveDocTheme, resolveNodeSize, type IconTheme } from '../shapes/iconRegistry.js';
+import { orientEdgesForLayout } from './networkTier.js';
 import { groupCellId, nodeCellId, edgeCellId } from '../types.js';
 import type { Geometry, GraphDocument, GraphGroup, GraphNode, Point } from '../types.js';
 
@@ -24,6 +25,17 @@ const MIN_PAGE_WIDTH = 900;
 const MIN_PAGE_HEIGHT = 600;
 
 const GROUP_PADDING = '[top=48,left=20,bottom=20,right=20]';
+
+/**
+ * Spacing shared by the root and every group container. ELK does not inherit
+ * spacing options into compound children, so without this groups fell back to
+ * the default 20px between layers and stacked devices looked cramped.
+ */
+const SPACING_OPTIONS: Record<string, string> = {
+  'elk.spacing.nodeNode': '48',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '36',
+};
 
 interface ElkNode {
   id: string;
@@ -80,22 +92,22 @@ function indexGraph(doc: GraphDocument): GraphIndex {
 }
 
 /** ELK box = icon box + label band (labels render below icons; docs Phase 0.5). */
-function leafElkSize(node: GraphNode): { width: number; height: number } {
-  const size = resolveNodeSize(node);
+function leafElkSize(node: GraphNode, theme: IconTheme): { width: number; height: number } {
+  const size = resolveNodeSize(node, theme);
   return { width: size.width, height: size.height + LABEL_BAND_HEIGHT };
 }
 
-function buildElkTree(index: GraphIndex, doc: GraphDocument): ElkNode {
+function buildElkTree(index: GraphIndex, doc: GraphDocument, theme: IconTheme): ElkNode {
   const buildGroup = (group: GraphGroup): ElkNode => ({
     id: groupCellId(group.id),
-    layoutOptions: { 'elk.padding': GROUP_PADDING },
+    layoutOptions: { 'elk.padding': GROUP_PADDING, ...SPACING_OPTIONS },
     children: [
       ...(index.groupsByParent.get(group.id) ?? []).map(buildGroup),
       ...(index.nodesByGroup.get(group.id) ?? []).map(buildLeaf),
     ],
   });
   const buildLeaf = (node: GraphNode): ElkNode => {
-    const size = leafElkSize(node);
+    const size = leafElkSize(node, theme);
     return { id: nodeCellId(node.id), width: size.width, height: size.height };
   };
   return {
@@ -105,19 +117,26 @@ function buildElkTree(index: GraphIndex, doc: GraphDocument): ElkNode {
       'elk.direction': doc.layout.direction,
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-      'elk.spacing.nodeNode': '48',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
-      'elk.layered.spacing.edgeNodeBetweenLayers': '36',
+      ...SPACING_OPTIONS,
       'elk.nodeSize.constraints': 'NODES',
+      // Network topologies: same-layer devices keep the input order
+      // left-to-right (服务器 1/2/3), instead of ELK's sweep reordering.
+      ...(doc.diagramType === 'network_topology'
+        ? { 'elk.layered.crossingMinimization.forceNodeModelOrder': 'true' }
+        : {}),
     },
     children: [
       ...(index.groupsByParent.get(undefined) ?? []).map(buildGroup),
       ...(index.nodesByGroup.get(undefined) ?? []).map(buildLeaf),
     ],
-    edges: doc.edges.map((e) => ({
-      id: edgeCellId(e.id),
-      sources: [nodeCellId(e.source)],
-      targets: [nodeCellId(e.target)],
+    // Layout-only orientation: undirected edges flow from the higher network
+    // tier so "公网 → 防火墙 → 核心交换机 → 服务器" comes out top-down even
+    // when the sentence listed them from the switch outward. The semantic
+    // source/target in the document and XML are not modified.
+    edges: orientEdgesForLayout(doc).map(({ edge, source, target }) => ({
+      id: edgeCellId(edge.id),
+      sources: [nodeCellId(source)],
+      targets: [nodeCellId(target)],
     })),
   };
 }
@@ -172,6 +191,7 @@ function collectElkResults(result: ElkNode): {
  * groups without geometry; grid-place nodes without geometry below content.
  */
 function layoutManual(doc: GraphDocument, index: GraphIndex): Map<string, Geometry> {
+  const theme = resolveDocTheme(doc);
   const geometries = new Map<string, Geometry>();
   const placedNodes = new Set<string>();
 
@@ -230,7 +250,7 @@ function layoutManual(doc: GraphDocument, index: GraphIndex): Map<string, Geomet
     const maxY = Math.max(0, ...[...geometries.values()].map((m) => m.y + m.height));
     const perRow = 4;
     missing.forEach((n, i) => {
-      const size = resolveNodeSize(n);
+      const size = resolveNodeSize(n, theme);
       const row = Math.floor(i / perRow);
       const col = i % perRow;
       geometries.set(nodeCellId(n.id), {
@@ -301,6 +321,7 @@ function normalize(geometries: Map<string, Geometry>, edgeWaypoints: Map<string,
  */
 export async function layoutGraph(doc: GraphDocument): Promise<LayoutOutput> {
   const index = indexGraph(doc);
+  const theme = resolveDocTheme(doc);
   let geometries: Map<string, Geometry>;
   let edgeWaypoints = new Map<string, Point[]>();
 
@@ -313,7 +334,7 @@ export async function layoutGraph(doc: GraphDocument): Promise<LayoutOutput> {
     }
   } else {
     const elk = new ELK();
-    const tree = buildElkTree(index, doc);
+    const tree = buildElkTree(index, doc, theme);
     let result: ElkNode;
     try {
       result = (await elk.layout(tree as never)) as unknown as ElkNode;

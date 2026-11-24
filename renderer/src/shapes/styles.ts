@@ -4,6 +4,7 @@
  * images); professional icon libraries are a later-phase enhancement (docs/07).
  */
 import type { EdgeDirection, EdgeKind, GraphNode, NodeKind, StyleMap, StyleValue } from '../types.js';
+import type { IconTheme } from './iconRegistry.js';
 
 /**
  * Base vertex styles per node kind. Colors follow the fixture palette family.
@@ -61,6 +62,40 @@ export function composeStyle(base: string, overrides?: StyleMap): string {
   return parts.join('');
 }
 
+function arrowFragment(kind: EdgeKind, direction: EdgeDirection): string {
+  if (kind === 'physical') {
+    return 'startArrow=none;startFill=0;endArrow=none;endFill=0;';
+  }
+  if (direction === 'bidirectional') {
+    return 'startArrow=block;startFill=1;endArrow=block;endFill=1;';
+  }
+  if (direction === 'forward') {
+    return 'startArrow=none;startFill=0;endArrow=block;endFill=1;';
+  }
+  return 'startArrow=none;startFill=0;endArrow=none;endFill=0;';
+}
+
+/**
+ * Cisco theme edge: thin straight black line as in draw.io's Cisco templates
+ * (no orthogonal routing, no fixed anchors, no waypoints). Physical links
+ * carry no arrow; other kinds keep their arrows and a dashed stroke.
+ */
+function composeCiscoEdgeStyle(kind: EdgeKind, direction: EdgeDirection, overrides?: StyleMap): string {
+  // labelBackgroundColor keeps link labels readable where lines or icons cross.
+  const parts: string[] = ['sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;'];
+  if (kind === 'logical' || kind === 'control' || kind === 'dependency') {
+    parts.push('dashed=1;');
+  }
+  parts.push(arrowFragment(kind, direction));
+  if (overrides) {
+    for (const [key, value] of Object.entries(overrides)) {
+      parts.push(`${key.replace(/[;=\s]/g, '')}=${String(value).replace(/[;\r\n]/g, ' ').trim()};`);
+    }
+  }
+  parts.push(`aiKind=${kind};aiDirection=${direction};`);
+  return parts.join('');
+}
+
 /**
  * Physical edges are rendered without any arrow regardless of the declared
  * direction; other kinds get arrows according to their direction. The
@@ -69,19 +104,23 @@ export function composeStyle(base: string, overrides?: StyleMap): string {
  * round-trip (arrow-based heuristics cannot distinguish logical/control/
  * dependency edges).
  */
-export function composeEdgeStyle(kind: EdgeKind, direction: EdgeDirection, overrides?: StyleMap): string {
-  const parts: string[] = [composeStyle(EDGE_STYLES[kind], overrides)];
-  if (kind === 'physical') {
-    parts.push('startArrow=none;startFill=0;endArrow=none;endFill=0;');
-  } else if (direction === 'bidirectional') {
-    parts.push('startArrow=block;startFill=1;endArrow=block;endFill=1;');
-  } else if (direction === 'forward') {
-    parts.push('endArrow=block;endFill=1;');
-  } else {
-    parts.push('startArrow=none;startFill=0;endArrow=none;endFill=0;');
+export function composeEdgeStyle(
+  kind: EdgeKind,
+  direction: EdgeDirection,
+  overrides?: StyleMap,
+  theme: IconTheme = 'networks',
+): string {
+  if (theme === 'cisco') {
+    return composeCiscoEdgeStyle(kind, direction, overrides);
   }
+  const parts: string[] = [composeStyle(EDGE_STYLES[kind], overrides), arrowFragment(kind, direction)];
   parts.push(`aiKind=${kind};aiDirection=${direction};`);
   return parts.join('');
+}
+
+/** Cisco-theme edges are straight lines: no ELK waypoints and no fixed anchors. */
+export function isStraightEdge(theme: IconTheme): boolean {
+  return theme === 'cisco';
 }
 
 export const DEFAULT_NODE_WIDTH = 120;

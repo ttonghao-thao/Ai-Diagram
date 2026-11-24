@@ -177,6 +177,14 @@ def test_stencil_ids_match_between_ts_and_python() -> None:
     assert ts_ids == py_ids, f"drift: ts={sorted(ts_ids)} py={sorted(py_ids)}"
     assert len(ts_ids) >= 8  # the eight device stencils
 
+    # Cisco theme: TS builds "shape=mxgraph.cisco.<section>.<name>" through
+    # ciscoStencil('<section>.<name>'); Python inlines the full ids.
+    ts_cisco = set(re.findall(r"ciscoStencil\('([a-z0-9_]+\.[a-z0-9_]+)'", ts))
+    py_cisco = set(re.findall(r'_cisco\("([a-z0-9_]+\.[a-z0-9_]+)"', py))
+    assert ts_cisco == py_cisco, f"cisco drift: ts={sorted(ts_cisco)} py={sorted(py_cisco)}"
+    assert {"misc.route_switch_processor", "security.ios_firewall",
+            "servers.server_with_router", "storage.cloud"} <= ts_cisco
+
 
 def _create(client) -> None:
     resp = client.post("/api/v1/diagrams", json=load_fixture("network.graph.json"))

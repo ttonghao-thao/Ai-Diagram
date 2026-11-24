@@ -346,12 +346,37 @@ _GRAPH_SECTION_FIELDS = {
 
 logger = logging.getLogger(__name__)
 
+# Generic link labels LLMs invent for physical links ("Connection", "Uplink",
+# "连接"...). A label the user actually named (Trunk 上联, 千兆光纤) never
+# matches: only bare generic words / word combinations are dropped.
+_GENERIC_EDGE_LABELS = {
+    "connection", "connect", "link", "uplink", "downlink", "cable", "network",
+    "internet", "internet connection", "network connection", "physical connection",
+    "物理连接", "网络连接", "互联网连接", "连接", "连线", "链路", "上联", "下联", "互联", "相连",
+}
+_GENERIC_EDGE_LABEL_PATTERN = re.compile(
+    r"^(?:物理|网络|互联网|internet\s*|network\s*|physical\s*)*"
+    r"(?:connection|connect|link|uplink|连接|连线|链路|上联|下联)$",
+    re.I,
+)
+
+
+def is_generic_edge_label(label: Any) -> bool:
+    if not isinstance(label, str):
+        return False
+    text = label.strip().lower()
+    if not text:
+        return False
+    return text in _GENERIC_EDGE_LABELS or bool(_GENERIC_EDGE_LABEL_PATTERN.match(text))
+
 
 def normalize_llm_graph_draft(raw: Dict[str, Any]) -> Dict[str, Any]:
     """Strip hallucinated extra fields from an LLM graph draft.
 
-    Only unknown keys are removed (recorded in the log); nothing inside the
-    whitelist is modified. Stored graphs still pass the strict schema.
+    Unknown keys are removed; generic invented labels ("Connection") are
+    dropped from physical links. Both are recorded in the log; explicit labels
+    and every whitelisted value stay untouched. Stored graphs still pass the
+    strict schema.
     """
     out = {k: v for k, v in raw.items() if k in _GRAPH_ROOT_FIELDS}
     dropped_root = set(raw) - set(out)
@@ -371,6 +396,10 @@ def normalize_llm_graph_draft(raw: Dict[str, Any]) -> Dict[str, Any]:
                 logger.info("llm draft: dropped %s fields %s on '%s'",
                             section, sorted(extra), item.get("id", "?"))
                 item = {k: v for k, v in item.items() if k in allowed}
+            if section == "edges" and item.get("kind") == "physical" and is_generic_edge_label(item.get("label")):
+                logger.info("llm draft: dropped generic label %r on physical edge '%s'",
+                            item.get("label"), item.get("id", "?"))
+                item.pop("label", None)
             cleaned.append(item)
         out[section] = cleaned
     return out

@@ -35,6 +35,9 @@
 | Q-2 | 前端零自动化测试 | 依赖人工 + 后端集成测试 | OPEN |
 | Q-3 | 预览令牌存进程内存：重启失效、多 worker/多实例不可用 | 单 worker 部署最稳；多实例需外置存储 | OPEN |
 | Q-4 | 锚点插入 O(n²)（大图 patch 变慢） | 5000 cell 上限内可接受 | OPEN（低优先） |
+| Q-9 | 网络层级定向按**设备类型**排层 | 两台防火墙（如服务器区防火墙）会被排到同一层；核心/接入交换机同为 switch，靠语句顺序区分 | OPEN（低优先；可扩展为 properties.tier 显式层级） |
+| Q-10 | 网络拓扑图强制同层按输入顺序（`forceNodeModelOrder`） | 牺牲部分交叉最小化，密集图连线交叉可能略多 | OPEN（取舍记录于报告 §16） |
+| Q-11 | Cisco 主题外观细节 | 连线为直线、标签在中点（已加白底保证可读）；组容器仍是实底 swimlane，非参考图的虚线框 | OPEN（外观项） |
 | Q-5 | `ai_jobs` 只增不清；无查询端点 | 长期膨胀 | OPEN |
 | Q-6 | mock `parse_graph` 生成的节点 id 可读性差（item/item_2；patch 侧已改用英文 kind） | 不影响正确性 | OPEN |
 | Q-7 | `/validate` 用 diagram id `"-"` 占位、`projects` 表无 CRUD | 接口语义洁癖项 | OPEN |

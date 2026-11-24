@@ -6,49 +6,39 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="g_server_zone" value="服务器区" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;" vertex="1" parent="1">
-          <mxGeometry x="40" y="539" width="560" height="162" as="geometry" />
+          <mxGeometry x="40" y="539" width="616" height="162" as="geometry" />
         </mxCell>
-        <mxCell id="n_wan" value="外部网络" style="shape=mxgraph.networks.cloud;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=cloud;" vertex="1" parent="1">
+        <mxCell id="n_wan" value="外部网络" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;aiKind=cloud;" vertex="1" parent="1">
           <mxGeometry x="112.5" y="40" width="130" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="n_firewall" value="防火墙" style="shape=mxgraph.networks.firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=firewall;" vertex="1" parent="1">
+        <mxCell id="n_firewall" value="防火墙" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;aiKind=firewall;" vertex="1" parent="1">
           <mxGeometry x="112.5" y="204" width="130" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="n_core_switch" value="核心交换机" style="shape=mxgraph.networks.switch;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=switch;" vertex="1" parent="1">
+        <mxCell id="n_core_switch" value="核心交换机" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;aiKind=switch;" vertex="1" parent="1">
           <mxGeometry x="102.5" y="368" width="150" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="n_server_01" value="服务器 01" style="shape=mxgraph.networks.server;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=server;" vertex="1" parent="g_server_zone">
-          <mxGeometry x="200" y="48" width="160" height="70" as="geometry" />
+        <mxCell id="n_server_01" value="服务器 01" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;aiKind=server;" vertex="1" parent="g_server_zone">
+          <mxGeometry x="228" y="48" width="160" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="n_server_02" value="服务器 02" style="shape=mxgraph.networks.server;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=server;" vertex="1" parent="g_server_zone">
-          <mxGeometry x="380" y="48" width="160" height="70" as="geometry" />
+        <mxCell id="n_server_02" value="服务器 02" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;aiKind=server;" vertex="1" parent="g_server_zone">
+          <mxGeometry x="436" y="48" width="160" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="n_server_03" value="服务器 03" style="shape=mxgraph.networks.server;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=server;" vertex="1" parent="g_server_zone">
+        <mxCell id="n_server_03" value="服务器 03" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;aiKind=server;" vertex="1" parent="g_server_zone">
           <mxGeometry x="20" y="48" width="160" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="e_wan_to_fw" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_wan" target="n_firewall">
+        <mxCell id="e_wan_to_fw" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_wan" target="n_firewall">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_fw_to_core" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_firewall" target="n_core_switch">
+        <mxCell id="e_fw_to_core" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_firewall" target="n_core_switch">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_core_to_s1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_01">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="177.5" y="498" />
-              <mxPoint x="320" y="498" />
-            </Array>
-          </mxGeometry>
+        <mxCell id="e_core_to_s1" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_core_switch" target="n_server_01">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_core_to_s2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_02">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="215" y="488" />
-              <mxPoint x="500" y="488" />
-            </Array>
-          </mxGeometry>
+        <mxCell id="e_core_to_s2" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_core_switch" target="n_server_02">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_core_to_s3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_core_switch" target="n_server_03">
+        <mxCell id="e_core_to_s3" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_core_switch" target="n_server_03">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>

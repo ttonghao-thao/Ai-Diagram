@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, rmSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -68,4 +68,41 @@ test('CLI rejects an invalid graph with exit code 1 and a machine-readable code'
 test('CLI usage error exits 2', () => {
   const res = runCli(['generate']);
   assert.equal(res.status, 2);
+});
+
+test('CLI honors the caller\'s layout.direction and metadata.iconTheme', () => {
+  // Layout-only: previously the validator replaced direction/algorithm with
+  // DOWN/layered and dropped metadata, so these options never reached the renderer.
+  const dir = path.join(REPO_ROOT, 'out', 'cli-options');
+  mkdirSync(dir, { recursive: true });
+  const graph = {
+    schemaVersion: '1.0',
+    diagramId: 'cli_options',
+    name: '方向与主题',
+    diagramType: 'network_topology',
+    nodes: [
+      { id: 'fw', label: '防火墙', kind: 'firewall' },
+      { id: 'sw', label: '交换机', kind: 'switch' },
+    ],
+    groups: [],
+    edges: [{ id: 'l1', source: 'fw', target: 'sw', kind: 'physical', direction: 'undirected' }],
+    layout: { algorithm: 'layered', direction: 'RIGHT', preserveManualPositions: true },
+    metadata: { iconTheme: 'networks' },
+  };
+  const input = path.join(dir, 'graph.json');
+  const output = path.join(dir, 'graph.drawio');
+  writeFileSync(input, JSON.stringify(graph), 'utf8');
+  const res = runCli(['generate', '--input', input, '--output', output]);
+  assert.equal(res.status, 0, res.stderr);
+  const { parseDrawioXml } = require('../src/drawio/xmlReader.js') as typeof import('../src/drawio/xmlReader.js');
+  const parsed = parseDrawioXml(readFileSync(output, 'utf8'));
+  const fw = parsed.cellById.get('n_fw')!.geometry!;
+  const sw = parsed.cellById.get('n_sw')!.geometry!;
+  // RIGHT layout: one row (vertically center-aligned), higher tier on the left.
+  const fwCenter = (fw.y ?? 0) + (fw.height ?? 0) / 2;
+  const swCenter = (sw.y ?? 0) + (sw.height ?? 0) / 2;
+  assert.ok(Math.abs(fwCenter - swCenter) <= 1, `centers differ: ${fwCenter} vs ${swCenter}`);
+  assert.ok((fw.x ?? 0) < (sw.x ?? 0), 'RIGHT layout must put the higher tier on the left');
+  assert.ok(parsed.cellById.get('n_fw')!.style?.includes('shape=mxgraph.networks.firewall'));
+  rmSync(dir, { recursive: true, force: true });
 });

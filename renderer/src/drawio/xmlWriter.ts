@@ -3,8 +3,8 @@
  * docs/03 section 3: stable cell ids, real vertex/edge/group cells, correct
  * parent-child and source/target references, XML escaping for all text.
  */
-import { composeEdgeStyle, composeStyle, GROUP_STYLE } from '../shapes/styles.js';
-import { resolveNodeIcon } from '../shapes/iconRegistry.js';
+import { composeEdgeStyle, composeStyle, GROUP_STYLE, isStraightEdge } from '../shapes/styles.js';
+import { resolveDocTheme, resolveNodeIcon } from '../shapes/iconRegistry.js';
 import { edgeCellId, groupCellId, nodeCellId } from '../types.js';
 import type { Geometry, GraphDocument, GraphGroup, GraphNode, StyleMap } from '../types.js';
 import type { LayoutOutput } from '../layout/elkLayout.js';
@@ -109,6 +109,8 @@ export function edgeAnchorStyle(layout: LayoutOutput, sourceCellId: string, targ
  */
 export function serializeDrawio(doc: GraphDocument, layout: LayoutOutput, options: SerializeOptions = {}): string {
   const tree = buildTree(doc);
+  const theme = resolveDocTheme(doc);
+  const straightEdges = isStraightEdge(theme);
   const lines: string[] = [];
 
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
@@ -139,7 +141,7 @@ export function serializeDrawio(doc: GraphDocument, layout: LayoutOutput, option
     const geo = layout.geometries.get(nodeCellId(node.id));
     if (!geo) continue;
     const parentAbs = node.groupId ? layout.geometries.get(groupCellId(node.groupId)) : undefined;
-    const icon = resolveNodeIcon(node, options.customIcons);
+    const icon = resolveNodeIcon(node, { customIcons: options.customIcons, theme });
     lines.push(`        <mxCell id="${nodeCellId(node.id)}"${attr('value', node.label)} style="${escapeXml(icon.style)}" vertex="1" parent="${parentCellId}">`);
     lines.push(geometryLines(nodeCellId(node.id), geo, parentAbs, '          '));
     lines.push('        </mxCell>');
@@ -148,9 +150,13 @@ export function serializeDrawio(doc: GraphDocument, layout: LayoutOutput, option
   // Edges: always parented to the root layer; waypoints are absolute points;
   // fixed directional anchors are derived from the layout geometry.
   for (const edge of doc.edges) {
-    const anchors = edgeAnchorStyle(layout, nodeCellId(edge.source), nodeCellId(edge.target));
-    const style = composeEdgeStyle(edge.kind, edge.direction, edge.style as StyleMap | undefined) + anchors;
-    const waypoints = layout.edgeWaypoints.get(edgeCellId(edge.id)) ?? [];
+    // Straight-line theme: no fixed anchors, no ELK bend points — draw.io
+    // connects the shape perimeters directly (Cisco template look).
+    const anchors = straightEdges
+      ? ''
+      : edgeAnchorStyle(layout, nodeCellId(edge.source), nodeCellId(edge.target));
+    const style = composeEdgeStyle(edge.kind, edge.direction, edge.style as StyleMap | undefined, theme) + anchors;
+    const waypoints = straightEdges ? [] : (layout.edgeWaypoints.get(edgeCellId(edge.id)) ?? []);
     lines.push(
       `        <mxCell id="${edgeCellId(edge.id)}"${attr('value', edge.label ?? '')} style="${escapeXml(style)}" edge="1" parent="1" source="${nodeCellId(edge.source)}" target="${nodeCellId(edge.target)}">`,
     );
