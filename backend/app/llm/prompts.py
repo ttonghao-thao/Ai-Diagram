@@ -46,7 +46,11 @@ def parse_graph_user_prompt(text: str, diagram_type: str) -> str:
 
 
 def parse_graph_system_prompt() -> str:
-    return PARSE_GRAPH_SYSTEM_PROMPT.format(schema=graph_schema_text())
+    # NOTE: .format() is forbidden here — the template intentionally contains
+    # literal JSON examples ({code: "AMBIGUOUS_RELATION", ...}) which format()
+    # treats as replacement fields (KeyError: 'code' in the first real LLM
+    # call). A precise placeholder replace is brace-safe.
+    return PARSE_GRAPH_SYSTEM_PROMPT.replace("{schema}", graph_schema_text())
 
 
 PROPOSE_PATCH_SYSTEM_PROMPT = """你是一个拓扑增量修改助手。根据用户指令和当前 GraphDocument 输出一个符合下方 JSON Schema 的 GraphPatch。
@@ -65,7 +69,10 @@ JSON Schema（GraphPatch v1）：
 
 
 def propose_patch_system_prompt() -> str:
-    return PROPOSE_PATCH_SYSTEM_PROMPT.format(schema=(_CONTRACTS / "patch.schema.json").read_text(encoding="utf-8"))
+    # See parse_graph_system_prompt: brace-safe placeholder substitution.
+    return PROPOSE_PATCH_SYSTEM_PROMPT.replace(
+        "{schema}", (_CONTRACTS / "patch.schema.json").read_text(encoding="utf-8")
+    )
 
 
 def propose_patch_user_prompt(instruction: str, graph_json: str, base_version: int) -> str:

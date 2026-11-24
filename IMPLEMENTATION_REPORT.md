@@ -485,3 +485,17 @@ renderer **48/48**（+3：别名 stencil、SVG 覆盖别名、别名渲染往返
 
 - 流程图/组织结构图仍不在支持范围（需 schema 枚举扩展，见 docs/11 F-3）；"画布拖拽调整"由 draw.io Desktop 承担（边界 D-02）
 - mock 文本解析对别名设备（如中文"无线AP"）不会自动归一为英文别名——别名靠 Graph JSON 的 deviceType 显式指定
+
+## 14. 线上缺陷修复：OpenAI 提示词构建 KeyError（2026-11-24）
+
+用户以阿里云 MaaS qwen 通道实机调用"文本解析"时暴露：`PARSE_GRAPH_SYSTEM_PROMPT.format(schema=...)`
+抛 `KeyError: 'code'`——模板中的字面 JSON 示例 `{code: "AMBIGUOUS_RELATION"...}` 被 `str.format`
+当作占位符。该缺陷位于此前"未验证"的 OpenAI 真实分支（mock 测试不可见），修复为精确占位符
+`replace("{schema}", ...)`（`parse_graph` 与 `propose_patch` 两个构建器同修）。
+
+附带加固：`_chat` 对 `response_format` 参数被端点拒绝（HTTP 400）时自动去参重试一次（部分
+OpenAI 兼容通道不支持该参数；JSON 提取兜底不变）。
+
+新增 `tests/test_llm_openai.py`（6 例）：提示词括号安全渲染（本可提前拦截此 bug）、
+markdown 围栏 JSON 提取、非法输出耗尽修复轮次、修复后恢复、response_format 400 回退、
+5xx → LLM_UNAVAILABLE。backend **98 passed**。

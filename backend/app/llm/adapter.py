@@ -363,9 +363,16 @@ class OpenAICompatibleAdapter:
             "temperature": 0,
             "response_format": {"type": "json_object"},
         }
+        url = f"{self.base_url}/chat/completions"
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                resp = await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+                resp = await client.post(url, json=payload, headers=headers)
+                if resp.status_code == 400 and "response_format" in payload:
+                    # Some OpenAI-compatible endpoints (seen on qwen/MaaS
+                    # channels) reject the response_format parameter; retry
+                    # once without it — _extract_json still guards parsing.
+                    payload.pop("response_format")
+                    resp = await client.post(url, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise ApiException(
                 ErrorCode.LLM_UNAVAILABLE,
