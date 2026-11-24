@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="ai-diagram-studio" compressed="false">
+  <diagram id="page-1" name="分区企业网络">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1112" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="g_campus" value="生产园区" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#F5F5F5;strokeColor=none;swimlaneFillColor=#FBFBFB;" vertex="1" parent="1">
+          <mxGeometry x="251.08" y="801.61" width="432" height="269.76" as="geometry" />
+        </mxCell>
+        <mxCell id="g_servers" value="服务器区" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#F5F5F5;strokeColor=none;swimlaneFillColor=#FBFBFB;" vertex="1" parent="g_campus">
+          <mxGeometry x="24" y="56" width="384" height="189.76" as="geometry" />
+        </mxCell>
+        <mxCell id="n_wan" value="公网" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_perimeter" value="边界防火墙" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=85;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=firewall;aiNetworkRole=perimeter_security;aiShapeId=cisco.security.ios_firewall;" vertex="1" parent="1">
+          <mxGeometry x="99" y="217.41" width="52" height="85.28" as="geometry" />
+        </mxCell>
+        <mxCell id="n_core" value="核心交换机" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=85;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiDeviceType=layer3_switch;aiNetworkRole=core;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="1">
+          <mxGeometry x="93" y="406.69" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_aggregation" value="汇聚交换机" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=85;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="1">
+          <mxGeometry x="485.58" y="598.15" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_access" value="接入交换机" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=85;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=access;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="1">
+          <mxGeometry x="485.58" y="796.61" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_internal_fw" value="服务器区防火墙" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=111;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=firewall;aiNetworkRole=internal_security;aiShapeId=cisco.security.ios_firewall;" vertex="1" parent="1">
+          <mxGeometry x="84.83" y="599.79" width="52" height="85.28" as="geometry" />
+        </mxCell>
+        <mxCell id="n_srv3" value="服务器 03" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=80;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.server_with_router;" vertex="1" parent="g_servers">
+          <mxGeometry x="294" y="56" width="52" height="85.76" as="geometry" />
+        </mxCell>
+        <mxCell id="n_srv1" value="服务器 01" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=80;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.server_with_router;" vertex="1" parent="g_servers">
+          <mxGeometry x="38" y="56" width="52" height="85.76" as="geometry" />
+        </mxCell>
+        <mxCell id="n_srv2" value="服务器 02" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=80;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.server_with_router;" vertex="1" parent="g_servers">
+          <mxGeometry x="166" y="56" width="52" height="85.76" as="geometry" />
+        </mxCell>
+        <mxCell id="e_internet" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_perimeter" target="n_wan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_backbone" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_core" target="n_perimeter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_e_core" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_aggregation" target="n_core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_e_access" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_access" target="n_aggregation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_e_internal" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_internal_fw" target="n_core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_e_srv3" value="" style="edgeStyle=segmentEdgeStyle;exitX=0.5;exitY=0;entryX=0.5;entryY=0;sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_internal_fw" target="n_srv3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="110.83" y="586.15" />
+              <mxPoint x="595.08" y="586.15" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_e_srv1" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_internal_fw" target="n_srv1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_e_srv2" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_internal_fw" target="n_srv2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

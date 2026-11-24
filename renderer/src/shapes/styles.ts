@@ -3,7 +3,7 @@
  * estimation. Only portable, Desktop-bundled shapes are used (no external
  * images); professional icon libraries are a later-phase enhancement (docs/07).
  */
-import type { EdgeDirection, EdgeKind, GraphNode, NodeKind, StyleMap, StyleValue } from '../types.js';
+import type { EdgeDirection, EdgeKind, NodeKind, StyleMap, StyleValue } from '../types.js';
 import type { IconTheme } from './iconRegistry.js';
 
 /**
@@ -116,40 +116,4 @@ export function composeEdgeStyle(
   const parts: string[] = [composeStyle(EDGE_STYLES[kind], overrides), arrowFragment(kind, direction)];
   parts.push(`aiKind=${kind};aiDirection=${direction};`);
   return parts.join('');
-}
-
-/** Cisco-theme edges are straight lines: no ELK waypoints and no fixed anchors. */
-export function isStraightEdge(theme: IconTheme): boolean {
-  return theme === 'cisco';
-}
-
-export const DEFAULT_NODE_WIDTH = 120;
-export const DEFAULT_NODE_HEIGHT = 56;
-const MIN_NODE_WIDTH = 120;
-const MAX_NODE_WIDTH = 340;
-
-/**
- * Rough label-driven size estimate for nodes that carry no explicit geometry.
- * CJK characters are counted at full width, ASCII at ~0.55x; wrapped lines
- * increase the height. This only affects first layout, not manual geometry.
- */
-export function estimateNodeSize(node: Pick<GraphNode, 'label' | 'kind'>): { width: number; height: number } {
-  let cjk = 0;
-  let ascii = 0;
-  for (const ch of node.label) {
-    if (/[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/.test(ch)) {
-      cjk += 1;
-    } else {
-      ascii += 1;
-    }
-  }
-  const textWidth = 13 * cjk + 7 * ascii;
-  const width = Math.min(MAX_NODE_WIDTH, Math.max(MIN_NODE_WIDTH, Math.ceil(textWidth) + 44));
-  const usableWidth = Math.max(width - 40, 60);
-  const lines = Math.max(1, Math.ceil(textWidth / usableWidth));
-  let height = DEFAULT_NODE_HEIGHT;
-  if (node.kind === 'database') height = 74;
-  if (node.kind === 'cloud') height = 62;
-  height = Math.max(height, 40 + lines * 16);
-  return { width, height };
 }

@@ -10,14 +10,14 @@ import time
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from app.api.envelope import ok
 
 from app.api.imports import PreviewTokenStore
 from app.graph.patch import preview_patch, validate_patch_payload
-from app.importer.xml_edit import apply_patch_to_xml
-from app.importer.model_map import diff_graphs
+from app.services.diagram_changes import prepare_change
 from app.schemas.api import ApiException, ErrorCode
 
 router = APIRouter(prefix="/api/v1")
@@ -83,7 +83,29 @@ async def patch_preview(request: Request, diagram_id: str, body: PatchPreviewReq
         )
 
     preview = preview_patch(doc, patch)
-    diff = diff_graphs(doc, preview.graph)
+    layout_changes = [op for op in patch["operations"] if op["op"] == "update_layout"]
+    scope = "global" if any((op.get("changes") or {}).keys() & {"algorithm", "direction", "centerNodeId"}
+                            for op in layout_changes) else "local"
+    prepared = await run_in_threadpool(
+        prepare_change, state, diagram_id, diagram.current_version, doc, preview.graph,
+        patch["operations"], scope=scope, preserve_positions=preview.graph.layout.preserveManualPositions if layout_changes else True,
+    )
+    original = {item.id: item for item in [*doc.nodes, *doc.groups]}
+    preview.layoutPlan.addedNodes = [{"id": node.id, "geometry": node.geometry.model_dump()}
+                                     for node in prepared.graph.nodes if node.id not in original and node.geometry]
+    preview.layoutPlan.movedNodes = [
+        {"id": item.id, "geometry": item.geometry.model_dump()}
+        for item in [*prepared.graph.nodes, *prepared.graph.groups] if item.geometry and item.id in original
+        and original[item.id].geometry and (item.geometry.x, item.geometry.y) != (
+            original[item.id].geometry.x, original[item.id].geometry.y
+        )
+    ]
+    preview.layoutPlan.strategy = "global-reflow" if scope == "global" else "anchor-insert"
+    layout_plan = {
+        "strategy": preview.layoutPlan.strategy,
+        "addedNodes": preview.layoutPlan.addedNodes,
+        "movedNodes": preview.layoutPlan.movedNodes,
+    }
 
     if body.instruction:
         state.db.record_ai_job(
@@ -96,7 +118,9 @@ async def patch_preview(request: Request, diagram_id: str, body: PatchPreviewReq
         "diagramId": diagram_id,
         "baseVersion": diagram.current_version,
         "patch": patch,
-        "graph": preview.graph.model_dump(exclude_none=True),
+        "prepared": prepared,
+        "layoutPlan": layout_plan,
+        "impactedIds": preview.impactedIds,
         "_ts": time.time(),
     })
     return ok(request, {
@@ -108,13 +132,10 @@ async def patch_preview(request: Request, diagram_id: str, body: PatchPreviewReq
             {"code": w.code, "message": w.message, "relatedIds": w.relatedIds,
              "requiresConfirmation": w.requiresConfirmation}
             for w in preview.warnings
-        ],
-        "layoutPlan": {
-            "strategy": preview.layoutPlan.strategy,
-            "addedNodes": preview.layoutPlan.addedNodes,
-            "movedNodes": preview.layoutPlan.movedNodes,
-        },
-        "diff": diff.to_payload(),
+        ] + prepared.renderer_warnings,
+        "layoutPlan": layout_plan,
+        "diff": prepared.diff,
+        "quality": prepared.quality,
         "confirmationToken": token,
     })
 
@@ -123,7 +144,7 @@ async def patch_preview(request: Request, diagram_id: str, body: PatchPreviewReq
 async def patch_apply(request: Request, diagram_id: str, body: PatchApplyRequest) -> Dict[str, Any]:
     state = request.app.state
     _register_token_store(request.app)
-    diagram, doc = _current_doc(request, diagram_id)
+    diagram, _ = _current_doc(request, diagram_id)
 
     entry = state.patch_tokens.take(body.confirmationToken, diagram_id)
     if entry is None:
@@ -138,37 +159,27 @@ async def patch_apply(request: Request, diagram_id: str, body: PatchApplyRequest
             {"currentVersion": diagram.current_version, "previewedBaseVersion": entry["baseVersion"]},
         )
 
-    # Re-run the preview against the CURRENT graph: the patch must still apply.
-    patch = validate_patch_payload(entry["patch"])
-    preview = preview_patch(doc, patch)
-
-    # Directed XML edit of the current version's stored file.
-    xml_bytes, _sha = state.version_store.read_drawio(diagram_id, diagram.current_version)
-    mapping = state.version_store.read_manifest(diagram_id, diagram.current_version).get("cellMapping")
-    new_xml = apply_patch_to_xml(
-        xml_bytes, doc, preview.graph, patch["operations"], mapping=mapping,
-        max_cells=state.settings.max_xml_cells,
-    )
-
+    patch = entry["patch"]
+    prepared = entry["prepared"]
     row = state.version_store.commit_new_version(
         diagram_id=diagram_id,
         diagram_name=diagram.name,
         diagram_type=diagram.diagram_type,
-        graph=preview.graph.model_dump(exclude_none=True),
-        drawio_bytes=new_xml,
+        graph=prepared.graph.model_dump(exclude_none=True),
+        drawio_bytes=prepared.xml,
         origin="ai_patch",
         patch=patch,
         expected_base_version=body.baseVersion,
+        manifest_extra={"cellMapping": prepared.mapping},
+        visual_state=prepared.visual,
+        quality=prepared.quality,
     )
     return ok(request, {
         "version": {
             "version": row.version, "parentVersion": row.parent_version, "origin": row.origin,
             "sha256": row.sha256, "createdAt": row.created_at,
         },
-        "impactedIds": preview.impactedIds,
-        "layoutPlan": {
-            "strategy": preview.layoutPlan.strategy,
-            "addedNodes": preview.layoutPlan.addedNodes,
-            "movedNodes": preview.layoutPlan.movedNodes,
-        },
+        "impactedIds": entry["impactedIds"],
+        "layoutPlan": entry["layoutPlan"],
+        "quality": prepared.quality,
     })

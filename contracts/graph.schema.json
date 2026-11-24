@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ai-diagram-studio/graph.schema.json",
-  "title": "GraphDocument v1",
+  "title": "GraphDocument 1.0 / 1.1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "diagramId", "name", "diagramType", "nodes", "groups", "edges", "layout"],
   "properties": {
-    "schemaVersion": {"const": "1.0"},
+    "schemaVersion": {"enum": ["1.0", "1.1"]},
     "diagramId": {"$ref": "#/$defs/id"},
     "name": {"type": "string", "minLength": 1, "maxLength": 200},
     "diagramType": {"enum": ["network_topology", "business_architecture"]},
@@ -14,6 +14,7 @@
     "groups": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/group"}},
     "edges": {"type": "array", "maxItems": 3000, "items": {"$ref": "#/$defs/edge"}},
     "layout": {"$ref": "#/$defs/layout"},
+    "appearance": {"$ref": "#/$defs/appearance"},
     "metadata": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean", "null"]}},
     "warnings": {"type": "array", "items": {"$ref": "#/$defs/warning"}}
   },
@@ -82,9 +83,31 @@
       "type": "object", "additionalProperties": false,
       "required": ["algorithm", "direction", "preserveManualPositions"],
       "properties": {
-        "algorithm": {"enum": ["layered", "manual"]},
+        "algorithm": {"enum": ["layered", "manual", "star", "grouped"]},
         "direction": {"enum": ["DOWN", "RIGHT", "UP", "LEFT"]},
-        "preserveManualPositions": {"type": "boolean"}
+        "preserveManualPositions": {"type": "boolean"},
+        "constraints": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/layoutConstraint"}},
+        "centerNodeId": {"$ref": "#/$defs/id"}
+      }
+    },
+    "layoutConstraint": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["type", "nodes"], "properties": {"type": {"const": "sameRank"}, "nodes": {"type": "array", "minItems": 2, "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "axis", "nodes"], "properties": {"type": {"const": "order"}, "axis": {"enum": ["x", "y"]}, "nodes": {"type": "array", "minItems": 2, "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "axis", "nodes", "mode"], "properties": {"type": {"const": "align"}, "axis": {"enum": ["x", "y"]}, "nodes": {"type": "array", "minItems": 2, "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "mode": {"enum": ["start", "center", "end"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "source", "target", "position"], "properties": {"type": {"const": "relativePosition"}, "source": {"$ref": "#/$defs/id"}, "target": {"$ref": "#/$defs/id"}, "position": {"enum": ["above", "below", "left", "right"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "nodes", "rank"], "properties": {"type": {"const": "rank"}, "nodes": {"type": "array", "minItems": 1, "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}, "rank": {"type": "integer", "minimum": 0, "maximum": 999}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "nodes"], "properties": {"type": {"const": "preservePosition"}, "nodes": {"type": "array", "minItems": 1, "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}
+      ]
+    },
+    "appearance": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "themeId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+        "edgeRouting": {"enum": ["auto", "straight", "orthogonal"]},
+        "edgeLabelPolicy": {"enum": ["hidden", "explicit_only", "all"]},
+        "edgeArrowPolicy": {"enum": ["semantic", "hidden"]},
+        "showGroups": {"type": "boolean"}
       }
     },
     "warning": {

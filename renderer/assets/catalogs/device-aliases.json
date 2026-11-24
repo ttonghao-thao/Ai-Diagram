@@ -1,0 +1,346 @@
+{
+  "switch": {
+    "kind": "switch",
+    "aliases": [
+      "交换机",
+      "ethernet switch"
+    ]
+  },
+  "layer3_switch": {
+    "kind": "switch",
+    "aliases": [
+      "三层交换机",
+      "L3 switch",
+      "Multilayer Switch"
+    ]
+  },
+  "core_switch": {
+    "kind": "switch",
+    "role": "core",
+    "aliases": [
+      "核心交换机",
+      "core switch"
+    ]
+  },
+  "aggregation_switch": {
+    "kind": "switch",
+    "role": "aggregation",
+    "aliases": [
+      "汇聚交换机",
+      "aggregation switch",
+      "distribution switch"
+    ]
+  },
+  "access_switch": {
+    "kind": "switch",
+    "role": "access",
+    "aliases": [
+      "接入交换机",
+      "access switch"
+    ]
+  },
+  "router": {
+    "kind": "router",
+    "aliases": [
+      "路由器"
+    ]
+  },
+  "edge_router": {
+    "kind": "router",
+    "role": "edge_router",
+    "aliases": [
+      "出口路由器",
+      "边界路由器",
+      "edge router"
+    ]
+  },
+  "wireless_router": {
+    "kind": "router",
+    "role": "access",
+    "aliases": [
+      "无线路由器",
+      "wireless router"
+    ]
+  },
+  "firewall": {
+    "kind": "firewall",
+    "aliases": [
+      "防火墙",
+      "FW"
+    ]
+  },
+  "vpn_gateway": {
+    "kind": "generic",
+    "aliases": [
+      "VPN 网关",
+      "VPN gateway"
+    ]
+  },
+  "ids": {
+    "kind": "generic",
+    "aliases": [
+      "入侵检测",
+      "IDS/IPS"
+    ]
+  },
+  "ips": {
+    "kind": "generic",
+    "aliases": [
+      "入侵防御"
+    ]
+  },
+  "load_balancer": {
+    "kind": "generic",
+    "aliases": [
+      "负载均衡",
+      "负载均衡器",
+      "load balancer"
+    ]
+  },
+  "access_point": {
+    "kind": "generic",
+    "role": "access",
+    "aliases": [
+      "无线接入点",
+      "无线AP",
+      "AP",
+      "Wi-Fi AP",
+      "access point"
+    ]
+  },
+  "wireless_controller": {
+    "kind": "generic",
+    "aliases": [
+      "无线控制器",
+      "WLC"
+    ]
+  },
+  "olt": {
+    "kind": "generic",
+    "role": "aggregation",
+    "aliases": [
+      "光线路终端"
+    ]
+  },
+  "onu": {
+    "kind": "generic",
+    "role": "access",
+    "aliases": [
+      "光网络单元"
+    ]
+  },
+  "ont": {
+    "kind": "generic",
+    "role": "access",
+    "aliases": [
+      "光猫",
+      "光网络终端"
+    ]
+  },
+  "optical_splitter": {
+    "kind": "generic",
+    "role": "access",
+    "aliases": [
+      "分光器",
+      "光分路器",
+      "optical splitter"
+    ]
+  },
+  "fttr_main_gateway": {
+    "kind": "generic",
+    "role": "aggregation",
+    "aliases": [
+      "FTTR主网关",
+      "FTTR 主网关",
+      "主光猫"
+    ]
+  },
+  "fttr_sub_gateway": {
+    "kind": "generic",
+    "role": "access",
+    "aliases": [
+      "FTTR从网关",
+      "FTTR 从网关",
+      "从光猫"
+    ]
+  },
+  "server": {
+    "kind": "server",
+    "role": "endpoint",
+    "aliases": [
+      "服务器"
+    ]
+  },
+  "gpu_server": {
+    "kind": "server",
+    "role": "endpoint",
+    "aliases": [
+      "GPU服务器",
+      "GPU 服务器",
+      "GPU server"
+    ]
+  },
+  "vm": {
+    "kind": "vm",
+    "role": "endpoint",
+    "aliases": [
+      "虚拟机",
+      "虚拟服务器",
+      "virtual machine"
+    ]
+  },
+  "storage": {
+    "kind": "database",
+    "role": "endpoint",
+    "aliases": [
+      "存储",
+      "存储设备"
+    ]
+  },
+  "pc": {
+    "kind": "client",
+    "role": "endpoint",
+    "aliases": [
+      "电脑",
+      "台式机",
+      "desktop PC"
+    ]
+  },
+  "mobile": {
+    "kind": "client",
+    "role": "endpoint",
+    "aliases": [
+      "手机",
+      "移动终端"
+    ]
+  },
+  "camera": {
+    "kind": "client",
+    "role": "endpoint",
+    "aliases": [
+      "摄像机",
+      "摄像头",
+      "IPC"
+    ]
+  },
+  "smart_display": {
+    "kind": "client",
+    "role": "endpoint",
+    "aliases": [
+      "智能屏",
+      "智能显示屏"
+    ]
+  },
+  "sta": {
+    "kind": "client",
+    "role": "endpoint",
+    "aliases": [
+      "无线终端",
+      "station"
+    ]
+  },
+  "rack": {
+    "kind": "generic",
+    "aliases": [
+      "机柜",
+      "服务器机柜"
+    ]
+  },
+  "patch_panel": {
+    "kind": "generic",
+    "aliases": [
+      "配线架",
+      "patch panel"
+    ]
+  },
+  "smart_patch_panel": {
+    "kind": "generic",
+    "aliases": [
+      "电子配线架",
+      "智能配线架",
+      "smart patch panel"
+    ]
+  },
+  "dtu": {
+    "kind": "generic",
+    "aliases": [
+      "数据传输单元"
+    ]
+  },
+  "api_gateway": {
+    "kind": "service",
+    "aliases": [
+      "API 网关",
+      "API gateway"
+    ]
+  },
+  "database": {
+    "kind": "database",
+    "role": "endpoint",
+    "aliases": [
+      "数据库",
+      "DB"
+    ]
+  },
+  "message_queue": {
+    "kind": "service",
+    "aliases": [
+      "消息队列",
+      "MQ"
+    ]
+  },
+  "llm_service": {
+    "kind": "service",
+    "aliases": [
+      "大模型服务",
+      "LLM service"
+    ]
+  },
+  "cloud": {
+    "kind": "cloud",
+    "aliases": [
+      "云",
+      "云平台"
+    ]
+  },
+  "client": {
+    "kind": "client",
+    "role": "endpoint",
+    "aliases": [
+      "客户端",
+      "终端"
+    ]
+  },
+  "service": {
+    "kind": "service",
+    "aliases": [
+      "服务",
+      "应用服务"
+    ]
+  },
+  "modem": {
+    "kind": "generic",
+    "aliases": [
+      "调制解调器"
+    ]
+  },
+  "proxy": {
+    "kind": "generic",
+    "aliases": [
+      "代理服务器",
+      "proxy server"
+    ]
+  },
+  "hub": {
+    "kind": "generic",
+    "aliases": [
+      "集线器"
+    ]
+  },
+  "mainframe": {
+    "kind": "generic",
+    "aliases": [
+      "大型机"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "version": "2026-11.1",
+  "upstream": {
+    "repository": "https://github.com/jgraph/drawio-mcp",
+    "commit": "b7941af5541ba45edb72d6db164302294bf6cb40",
+    "path": "shape-search/search-index.json",
+    "sha256": "40cc0a0eee24567fc3da66c2307fa11a6fa9f17ff5653e658cf40638d65ea867",
+    "license": "Apache-2.0",
+    "notice": "Search index metadata and native references from JGraph drawio-mcp. Native artwork is provided by the user's draw.io installation and may carry separate vendor terms."
+  },
+  "classicStencilReference": "https://github.com/jgraph/drawio/tree/v24.7.17/src/main/webapp/stencils/cisco",
+  "classicStencilSha256": {
+    "computers_and_peripherals.xml": "bd64b9bfb7c0647d8c740221847696825d9839a22594c46fdd770f3b608352bd",
+    "directors.xml": "00067f9333c1cd426b542cfab0253d9192cb91efdabb44c3ba6d6c79161499e5",
+    "hubs_and_gateways.xml": "f8b86e61f321e80e9eceba5582d2948f326b01e32cec6dad3d9d9da5c032c275",
+    "misc.xml": "57b2a609deb7b8b6622df171f180a2e23e58511af14083787b1d6a62810b8640",
+    "routers.xml": "1ad2b6c5bc2d2e75b6b951f00e19e6bbbd85a0978807be442d0484d254e4edaa",
+    "security.xml": "70b7d1b8a18708569b3484ee462c720f63f32e9d08f9486901b871f63bb7e57b",
+    "servers.xml": "31ff98f2381fd3552dc630d0f8556410a92f3dbe9cd8771838437a7fa96de7a0",
+    "storage.xml": "e702af982424166dee1500caa9c903aa0028aec9bd62c6dc8b51f8ca203f8305"
+  },
+  "classicPreview": {
+    "viewer": "https://github.com/jgraph/drawio/blob/v24.7.17/src/main/webapp/js/viewer-static.min.js",
+    "viewerSha256": "7a67a13874704a89dffa096cba4d16cb00c04b02d6407514e121677b96a69074",
+    "notice": "Preview images are exports of editable sample cells rendered with the corresponding official draw.io viewer and Cisco stencils."
+  }
+}

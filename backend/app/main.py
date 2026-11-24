@@ -17,10 +17,12 @@ from fastapi.staticfiles import StaticFiles
 from app.api import diagrams as diagrams_api
 from app.api import imports as imports_api
 from app.api import patches as patches_api
+from app.api import materials as materials_api
 from app.config import get_settings
 from app.llm.adapter import build_adapter
 from app.schemas.api import ApiException, ApiError, ApiErrorBody, ErrorCode, new_request_id
 from app.services.renderer import RendererService
+from app.services.materials import MaterialService
 from app.storage.db import Database
 from app.storage.versions import VersionStore
 
@@ -29,9 +31,10 @@ def create_app(settings=None) -> FastAPI:
     settings = settings or get_settings()
     settings.ensure_dirs()
 
-    app = FastAPI(title="AI Diagram Studio", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(title="AI Diagram Studio", version="1.2.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
     app.state.settings = settings
     app.state.db = Database(settings.database_path)
+    app.state.materials = MaterialService(app.state.db)
     app.state.version_store = VersionStore(settings.storage_root, app.state.db)
     app.state.renderer = RendererService(
         cli_path=settings.renderer_cli,
@@ -86,6 +89,7 @@ def create_app(settings=None) -> FastAPI:
     app.include_router(diagrams_api.router)
     app.include_router(imports_api.router)
     app.include_router(patches_api.router)
+    app.include_router(materials_api.router)
 
     # Static frontend (built React admin console) — mounted last so /api and
     # /health take precedence. Missing dist simply omits the UI.

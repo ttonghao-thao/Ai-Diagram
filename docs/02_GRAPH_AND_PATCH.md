@@ -4,12 +4,19 @@
 
 **字段的权威定义**分别是：
 
-- [`../contracts/graph.schema.json`](../contracts/graph.schema.json)：GraphDocument v1。
+- [`../contracts/graph.schema.json`](../contracts/graph.schema.json)：GraphDocument 1.0 / 1.1。
 - [`../contracts/patch.schema.json`](../contracts/patch.schema.json)：GraphPatch v1。
 
 本文件解释语义、补充跨对象校验规则，不再维护第二份容易冲突的字段表。
 
 ## 2. GraphDocument
+
+V1.2 新写入的图纸版本为 1.1，1.0 文件可读并可用于生成。历史 Graph JSON 和 XML 按既有版本读取。主题优先采用 `appearance.themeId`，其次采用 `metadata.iconTheme`。图纸主题、连接标签和箭头策略始终保留原始边语义。
+
+`layout.constraints` 支持 `sameRank`、`order`、`align`、`relativePosition`、`rank`、`preservePosition`。`star` 可用 `layout.centerNodeId` 指定中心。设备子类型和网络角色通过 `properties.deviceType`、`deviceTypeRaw`、`networkRole`、`tier` 表达，素材通过 `style.shapeId` 引用。冲突约束返回 `LAYOUT_CONFLICT`。
+
+GraphPatch 支持 `update_layout` 与 `update_theme`。两个操作的 `id` 均为当前图纸的 `diagramId`，`changes` 覆盖对应设置。其余 Patch 的实体修改全部应用至内存图后，再解析画法、计算位置和生成预览。
+
 
 顶层至少包含：`schemaVersion`、`diagramId`、`name`、`diagramType`、`nodes`、`groups`、`edges`、`layout`。图类型仅 `network_topology` 和 `business_architecture`。可选 `metadata` 和 `warnings`。
 

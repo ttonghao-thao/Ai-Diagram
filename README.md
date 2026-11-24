@@ -1,16 +1,10 @@
 # AI Diagram Studio — Codex 工程实施包
 
-> **交付类型：需求/架构/数据契约/测试样例/开发指令**，不是已完成的可运行产品。  
-> **版本：v1.1（2026-11-21）**  
-> **唯一实现目标：文字或 Graph JSON → 可编辑 `.drawio` → Windows draw.io Desktop 人工编辑 → 回导 → AI 局部修改。**
+**V1.2 · 文字或 Graph JSON → 可编辑 `.drawio` → Desktop 编辑 → 回导与增量修改**
 
-## 30 秒了解项目
+FastAPI 编排 GraphDocument、GraphPatch 和版本持久化。TypeScript Renderer 使用官方素材索引和主题配置决定图标、布局与线路，输出 draw.io 原生 XML。React 工作台提供图纸生成、主题、个人素材、回导、质量报告与版本下载。
 
-系统接收用户的文字描述或节点与关联关系，使用 LLM 提取结构化图模型；使用 ELK.js 自动安排位置及路径；生成 **draw.io 原生 XML `.drawio` 文件**，在 **Windows draw.io Desktop** 中直接打开编辑。人工保存后可将图纸上传，系统识别更改并支持 AI 增量修改。**服务端不安装 draw.io，也不新建 Web 画布编辑器。**
-
-- **已有的**：设计文件、JSON Schema、结构化测试样例、预制 `.drawio` 示例、校验工具。
-- **Codex 要开发的**：FastAPI、LLM 适配、图模型与 Patch 引擎、ELK.js 布局、draw.io XML 双向适配、轻量 Web 工作台、版本持久化、测试。
-- **不在本次范围**：PPT 导出、亿图图示 `.eddx`、多模态图片还原、Windows 自动同步程序、在线绘图编辑器。
+最新实施与边界见 [V1.2 实施计划与决策](docs/12_V1_2_IMPLEMENTATION.md)，逐项验收见 [验证手册](docs/10_VERIFICATION_MANUAL.md)。Windows Desktop 和服务器部署的实机验收状态见 [遗留问题](docs/11_OPEN_ISSUES.md)。
 
 ## 阅读顺序（只有这一套）
 
@@ -27,69 +21,31 @@
 
 **规范优先级：**`docs/00_SCOPE_AND_DECISIONS.md`（边界）→ `contracts/*.json`（数据字段）→ 其余 `docs/*.md`（实现细节）。如冲突，Codex 记录冲突并提出最小修正，不静默变更要求。
 
-## 让 Codex 开始
+## 本地运行
 
-1. 解压完整 ZIP 至一个新的工作目录，例如 `ai-diagram-studio/`。
-2. 在该目录启动 Codex，先读取根目录 [`AGENTS.md`](AGENTS.md)。
-3. 将 [`CODEX_START_PROMPT.md`](CODEX_START_PROMPT.md) 内容粘贴到 Codex。
-4. **只允许先做 Phase 0**：Graph JSON → ELK → `.drawio`；无需 LLM、网页、GPU。
-5. Windows 上使用 draw.io Desktop 真正打开、编辑、保存一次，并反馈测试结果；通过后再做 Phase 1/2。
-
-**开发前的素材验证：**
+需要 Python 3.9+ 和 Node.js 20+。默认关闭 LLM，Graph JSON 路径可直接使用。以下命令以仓库根目录为工作目录。
 
 ```bash
-python -m pip install jsonschema
-python scripts/validate_fixtures.py
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+npm --prefix renderer ci
+npm --prefix renderer run build
+npm --prefix frontend ci
+npm --prefix frontend run build
+LLM_ENABLED=true LLM_PROVIDER=mock .venv/bin/python -m uvicorn app.main:app --app-dir backend
 ```
 
-上述检查仅验证 JSON、XML 的结构与引用关系，**不代表 Desktop 兼容性已通过**。
-
-## Phase 0 / 0.5 / 1 / 2 实现与运行命令（2026-11-21）
-
-确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
-Phase 0.5 追加**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）；
-Phase 1 交付 **FastAPI + SQLite/文件版本快照 + LLM（mock/OpenAI-compatible）+ 最小 React 工作台**；
-Phase 2 交付 **Desktop 回导（安全解析/压缩页/Diff/未知对象保留）+ GraphPatch 增量修改（预览→确认→原子应用、位置保护、XML 定向编辑）**。
-**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)；
-实现架构见 [docs/08](docs/08_IMPLEMENTED_ARCHITECTURE.md)，部署方案见 [docs/09](docs/09_DEPLOYMENT.md)，
-验证手册见 [docs/10](docs/10_VERIFICATION_MANUAL.md)，遗留问题台账见 [docs/11](docs/11_OPEN_ISSUES.md)。
-
-确定性管线 `Graph JSON → 语义校验 → ELK.js 布局 → .drawio` 已实现并全部通过自动化测试；
-Phase 0.5 追加了**专业设备图标**（内置 `mxgraph.networks` stencil + 本地自定义 SVG，零在线加载）。
-**Windows draw.io Desktop 人工闸门为 BLOCKED，等待实测**。完整状态见 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md)；
-实现架构见 [docs/08](docs/08_IMPLEMENTED_ARCHITECTURE.md)，部署方案见 [docs/09](docs/09_DEPLOYMENT.md)，
-验证手册见 [docs/10](docs/10_VERIFICATION_MANUAL.md)，遗留问题台账见 [docs/11](docs/11_OPEN_ISSUES.md)。
+访问 `http://127.0.0.1:8000/`。真实 LLM 配置见 [deploy/env.example](deploy/env.example)。受控部署的 Docker Compose 配置见 [docs/09_DEPLOYMENT.md](docs/09_DEPLOYMENT.md)。
 
 ```bash
-# 1) 素材自检
-python3 scripts/validate_fixtures.py
-
-# 2) Renderer：Graph JSON -> ELK.js -> 可编辑 .drawio（无 LLM/网络/GPU 依赖）
-cd renderer
-npm install          # 首次；依赖精确锁定（elkjs 0.12.1 / fast-xml-parser 5.12.1 / typescript 5.9.3）
-npm test             # 构建 + 64 个自动化测试，并产出 out/network.drawio、out/business.drawio
-npm run generate:all # 生成两张交付图（网络拓扑默认 draw.io 内置 Cisco 图标 + 细黑直线；详见 renderer/assets/icons/README.md）
-node dist/src/cli.js generate --input ../fixtures/templates/enterprise_network.graph.json --output ../out/enterprise_network.drawio  # 组网图模板
-node dist/src/cli.js generate --input ../fixtures/network.graph.json --output ../out/network.drawio
-node dist/src/cli.js generate --input <graph.json> --output <file.drawio> --icons-dir <自定义SVG目录>
-node dist/src/cli.js validate  --input ../out/network.drawio
-
-# 3) 图模型与语义校验 + Phase 1 API（FastAPI + SQLite + LLM mock）
-cd ../backend && python3 -m pytest   # 108 个测试（G/X + A/V + 文本用例 + I/P + P1 加固/同步）
-
-# 4) Web 工作台（Phase 1/2：生成 / 解析 / 校验 / 版本 / 导入回导 / AI 修改）
-cd ../frontend && npm install && npm run build     # 产物由 FastAPI 静态挂载
-cd .. && LLM_ENABLED=true LLM_PROVIDER=mock python3 -m uvicorn app.main:app --app-dir backend
-#   打开 http://127.0.0.1:8000/ （生成 / 文本解析 / 校验 / 版本与下载）
-
-# 5) Docker（未在本机验证）
-cd deploy && cp env.example .env && docker compose up --build
+.venv/bin/python scripts/validate_fixtures.py
+npm --prefix renderer test
+.venv/bin/python -m pytest backend/tests
+node renderer/dist/src/cli.js generate --input fixtures/v1_2_network.graph.json --output out/v1_2_network.drawio
+node renderer/dist/src/cli.js quality --input fixtures/v1_2_network.graph.json --drawio out/v1_2_network.drawio --output /tmp/diagram-quality.json
 ```
 
-实现目录：`backend/`（Pydantic 模型 + 语义校验 + FastAPI + 版本存储 + LLM adapter）、
-`renderer/`（TypeScript 渲染器 CLI + 图标注册表 + `assets/icons/` 自定义 SVG 目录）、
-`frontend/`（React 最小工作台，无画布）、`out/`（Phase 0 两张交付图）、
-`deploy/`（env.example / Dockerfile / compose.yaml）。
+使用 [V1.2 网络样例](out/v1_2_network.drawio)检查双防火墙分层、服务器区嵌套分组、编号顺序和原生 Cisco 图标。素材配置和更新流程见 [素材目录说明](renderer/assets/catalogs/README.md)。
 
 ## 文件目录
 
@@ -100,7 +56,7 @@ AI_Diagram_Studio_Codex_Package/
 ├── CODEX_START_PROMPT.md        # 可直接粘贴到 Codex
 ├── docs/                        # 00→07，按开发阅读顺序排列
 ├── contracts/
-│   ├── graph.schema.json        # GraphDocument v1
+│   ├── graph.schema.json        # GraphDocument 1.0 / 1.1
 │   └── patch.schema.json        # GraphPatch v1
 ├── fixtures/
 │   ├── network.graph.json       # 网络拓扑语义样例

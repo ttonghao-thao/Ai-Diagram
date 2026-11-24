@@ -128,7 +128,7 @@ def test_a03_mock_parse_never_invents_ips_or_connections(app_client, monkeypatch
         assert edge["kind"] == "physical"
         assert edge["direction"] == "undirected"
     for node in graph["nodes"]:
-        assert node["properties"] == {} or node["properties"].get("deviceType")
+        assert set(node["properties"]) <= {"deviceType", "deviceTypeRaw", "networkRole", "tier"}
         assert not any("192.0.2" in str(v) for v in node["properties"].values())
     ip_warnings = [w for w in resp.json()["data"]["documentWarnings"] if w["code"] == "IP_ADDRESSES_NOT_PARSED"]
     assert ip_warnings, "presence of IPs must produce an explicit non-parsed warning"

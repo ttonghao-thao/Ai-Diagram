@@ -635,16 +635,20 @@ def test_desktop_arrow_change_reported_as_kind_change(app_client) -> None:
     diff instead of silently overwriting the graph."""
     client, _ = app_client
     _create(client)
-    xml = _rendered_xml(client).decode("utf-8")
-    # Strip the semantic marker and draw an arrow, as a Desktop user would.
-    edited = xml.replace(
-        "startArrow=none;startFill=0;endArrow=none;endFill=0;aiKind=physical;aiDirection=undirected;",
-        "endArrow=block;endFill=1;",
-    )
-    assert edited != xml  # exactly one physical edge style was present per edge
+    xml = ET.fromstring(_rendered_xml(client))
+    # Change the actual fields, independent of template key ordering.
+    from app.importer.model_map import parse_style
+
+    for cell in xml.findall(".//mxCell[@edge='1']"):
+        style = parse_style(cell.get("style"))
+        assert style.pop("aiKind") == "physical"
+        assert style.pop("aiDirection") == "undirected"
+        style.update({"endArrow": "block", "endFill": "1"})
+        cell.set("style", "".join(f"{key}={value};" for key, value in style.items()))
+    edited = ET.tostring(xml, encoding="utf-8")
     resp = client.post(
         "/api/v1/diagrams/sample_network/import/drawio",
-        files={"file": ("edited.drawio", edited.encode("utf-8"), "application/xml")},
+        files={"file": ("edited.drawio", edited, "application/xml")},
         data={"baseVersion": 1},
     )
     assert resp.status_code == 200

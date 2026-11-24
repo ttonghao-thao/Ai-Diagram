@@ -164,26 +164,14 @@ def test_every_node_kind_roundtrips_through_importer(tmp_path) -> None:
         assert result.unknown_cells == []
 
 
-def test_stencil_ids_match_between_ts_and_python() -> None:
-    """Static sync check: the mxgraph.networks shape ids in the TypeScript
-    registry and the Python XML-edit templates must be identical sets."""
-    import re
+def test_catalog_mappings_reference_real_stencils() -> None:
+    from app.services.materials import bundled_shapes, theme_catalog
 
-    ts = (REPO_ROOT / "renderer/src/shapes/iconRegistry.ts").read_text(encoding="utf-8")
-    py = (REPO_ROOT / "backend/app/importer/xml_edit.py").read_text(encoding="utf-8")
-    # TS builds styles via networksStencil('name'); Python inlines the full id.
-    ts_ids = set(re.findall(r"networksStencil\('([a-z_]+)'\)", ts))
-    py_ids = set(re.findall(r"mxgraph\.networks\.([a-z_]+)", py))
-    assert ts_ids == py_ids, f"drift: ts={sorted(ts_ids)} py={sorted(py_ids)}"
-    assert len(ts_ids) >= 8  # the eight device stencils
-
-    # Cisco theme: TS builds "shape=mxgraph.cisco.<section>.<name>" through
-    # ciscoStencil('<section>.<name>'); Python inlines the full ids.
-    ts_cisco = set(re.findall(r"ciscoStencil\('([a-z0-9_]+\.[a-z0-9_]+)'", ts))
-    py_cisco = set(re.findall(r'_cisco\("([a-z0-9_]+\.[a-z0-9_]+)"', py))
-    assert ts_cisco == py_cisco, f"cisco drift: ts={sorted(ts_cisco)} py={sorted(py_cisco)}"
-    assert {"misc.route_switch_processor", "security.ios_firewall",
-            "servers.server_with_router", "storage.cloud"} <= ts_cisco
+    catalog = bundled_shapes()
+    assert len(catalog) >= 1000
+    for theme in theme_catalog().values():
+        assert set(theme["devices"].values()) <= catalog.keys()
+    assert theme_catalog()["cisco"]["devices"]["switch"] == "cisco.misc.route_switch_processor"
 
 
 def _create(client) -> None:

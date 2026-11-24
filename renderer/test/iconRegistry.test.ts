@@ -12,11 +12,9 @@ import {
   CISCO_ALIAS_REGISTRY,
   CISCO_ICON_REGISTRY,
   ICON_REGISTRY,
-  LABEL_BAND_HEIGHT,
   dataUriToSvg,
   loadCustomIcons,
   resolveNodeIcon,
-  resolveNodeSize,
   sanitizeStyleToken,
   svgImageStyle,
   svgToDataUri,
@@ -26,6 +24,7 @@ import { serializeDrawio } from '../src/drawio/xmlWriter.js';
 import { parseDrawioXml } from '../src/drawio/xmlReader.js';
 import { GraphDocument, GraphNode, NodeKind } from '../src/types.js';
 import { composeEdgeStyle } from '../src/shapes/styles.js';
+import { resolveDrawing } from '../src/shapes/resolve.js';
 
 const ALL_KINDS: NodeKind[] = [
   'switch', 'router', 'firewall', 'server', 'vm', 'cloud', 'service', 'database', 'client', 'generic',
@@ -179,14 +178,22 @@ test('svgImageStyle rejects base64 and non-SVG image values', () => {
   assert.equal(dataUriToSvg(svgToDataUri(SAMPLE_SVG)), SAMPLE_SVG);
 });
 
-test('resolveNodeSize uses registry defaults and widens for long device names', () => {
-  const plain = resolveNodeSize({ id: 'r1', label: 'R1', kind: 'router' });
-  assert.equal(plain.width, ICON_REGISTRY.router.width);
-  assert.equal(plain.height, ICON_REGISTRY.router.height);
-  const long = resolveNodeSize({ id: 'r2', label: '核心出口路由器集群设备A区', kind: 'router' });
-  assert.ok(long.width > ICON_REGISTRY.router.width, 'long label must widen the icon box');
-  const fixed = resolveNodeSize({ id: 'r3', label: 'R3', kind: 'router', geometry: { x: 0, y: 0, width: 200, height: 70 } });
-  assert.deepEqual(fixed, { width: 200, height: 70 });
+test('resolved icon dimensions preserve defaults and explicit geometry', () => {
+  const doc: GraphDocument = {
+    schemaVersion: '1.0', diagramId: 'sizes', name: '尺寸', diagramType: 'business_architecture', groups: [], edges: [],
+    layout: { algorithm: 'layered', direction: 'DOWN', preserveManualPositions: true },
+    nodes: [
+      { id: 'r1', label: 'R1', kind: 'router' },
+      { id: 'r2', label: '核心出口路由器集群设备A区', kind: 'router' },
+      { id: 'r3', label: 'R3', kind: 'router', geometry: { x: 0, y: 0, width: 200, height: 70 } },
+    ],
+  };
+  const { nodes } = resolveDrawing(doc);
+  assert.equal(nodes.r1.iconSize.width, ICON_REGISTRY.router.width);
+  assert.equal(nodes.r1.iconSize.height, ICON_REGISTRY.router.height);
+  assert.deepEqual(nodes.r2.iconSize, nodes.r1.iconSize);
+  assert.ok(nodes.r2.labelSize.width > nodes.r1.labelSize.width);
+  assert.deepEqual(nodes.r3.iconSize, { width: 200, height: 70 });
 });
 
 test('layout reserves the label band below icons (icon box kept in geometry)', async () => {
@@ -241,33 +248,23 @@ test('generated XML embeds stencil icons, aiKind, anchors and labels (roundtrip 
   assert.ok(!l1.style?.includes('exitX='));
 });
 
-test('horizontal neighbours get side anchors; no anchors for coincident centers', () => {
-  // Reuse the exporter's anchor helper through a minimal layout map.
-  const layout = {
-    geometries: new Map([
-      ['n_a', { x: 0, y: 0, width: 100, height: 50 }],
-      ['n_b', { x: 400, y: 0, width: 100, height: 50 }],
-      ['n_c', { x: 400, y: 400, width: 100, height: 50 }],
-    ]),
-    edgeWaypoints: new Map(),
-    pageWidth: 900,
-    pageHeight: 600,
+test('orthogonal routing writes directional anchors for horizontal and vertical neighbors', async () => {
+  const doc: GraphDocument = {
+    schemaVersion: '1.1', diagramId: 'anchors', name: '连接锚点', diagramType: 'network_topology',
+    appearance: { edgeRouting: 'orthogonal' }, groups: [],
+    layout: { algorithm: 'manual', direction: 'DOWN', preserveManualPositions: true },
+    nodes: [['a', 0, 0], ['b', 400, 0], ['c', 0, 400]].map(([id, x, y]) =>
+      ({ id: String(id), label: String(id), kind: 'router', geometry: { x: Number(x), y: Number(y), width: 100, height: 50 } })),
+    edges: ['b', 'c'].map((target) =>
+      ({ id: 'edge_' + target, source: 'a', target, kind: 'physical', direction: 'undirected' })),
   };
-  // Imported lazily to keep the top import list focused on registry units.
-  const { edgeAnchorStyle } = require('../src/drawio/xmlWriter.js') as typeof import('../src/drawio/xmlWriter.js');
-  assert.ok(edgeAnchorStyle(layout as never, 'n_a', 'n_b').includes('exitX=1;exitY=0.5'));
-  assert.ok(edgeAnchorStyle(layout as never, 'n_a', 'n_b').includes('entryX=0;entryY=0.5'));
-  assert.ok(edgeAnchorStyle(layout as never, 'n_a', 'n_c').includes('exitX=0.5;exitY=1'));
-  const same = {
-    geometries: new Map([
-      ['n_a', { x: 0, y: 0, width: 100, height: 50 }],
-      ['n_b', { x: 0, y: 0, width: 100, height: 50 }],
-    ]),
-    edgeWaypoints: new Map(),
-    pageWidth: 900,
-    pageHeight: 600,
-  };
-  assert.equal(edgeAnchorStyle(same as never, 'n_a', 'n_b'), '');
+  const layout = await layoutGraph(doc);
+  assert.match(layout.drawing!.edges.edge_b.style, /exitX=1;exitY=0.5;entryX=0;entryY=0.5;/);
+  assert.match(layout.drawing!.edges.edge_c.style, /exitX=0.5;exitY=1;/);
+  doc.nodes = [doc.nodes[0], { ...doc.nodes[0], id: 'd' }];
+  doc.edges = [{ ...doc.edges[0], target: 'd' }];
+  const coincident = await layoutGraph(doc);
+  assert.doesNotMatch(coincident.drawing!.edges.edge_b.style, /exitX=/);
 });
 
 test('deviceType extended aliases resolve to mxgraph.networks stencils', () => {

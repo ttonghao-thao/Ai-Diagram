@@ -12,25 +12,23 @@ preview -> user confirmation -> apply:
 """
 from __future__ import annotations
 
-import copy
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 import jsonschema
 from pydantic import ValidationError
 
 from app.schemas.api import ApiException, ErrorCode
-from app.schemas.graph import Geometry, GraphDocument, GraphEdge, GraphGroup, GraphNode, Point
+from app.schemas.graph import Appearance, Geometry, GraphDocument, GraphEdge, GraphGroup, GraphNode, LayoutSpec, Point
 
 _CONTRACTS = Path(__file__).resolve().parents[3] / "contracts"
 _PATCH_SCHEMA = json.loads((_CONTRACTS / "patch.schema.json").read_text(encoding="utf-8"))
 _PATCH_VALIDATOR = jsonschema.Draft202012Validator(_PATCH_SCHEMA)
 
 UPDATABLE_NODE_KEYS = {"label", "style", "geometry", "manualLocked", "properties", "groupId"}
-UPDATABLE_GROUP_KEYS = {"label", "style", "geometry", "manualLocked"}
+UPDATABLE_GROUP_KEYS = {"label", "style", "geometry", "manualLocked", "parentId"}
 UPDATABLE_EDGE_KEYS = {"label", "sourcePort", "targetPort", "waypoints", "style"}
 EDGE_ENDPOINT_KEYS = {"source", "target", "kind", "direction"}  # reconnect class
 
@@ -96,115 +94,6 @@ def _validated_waypoints(raw: Any) -> List[Point]:
                            {"errors": [str(e["msg"]) for e in exc.errors()[:5]]})
 
 
-def _node_boxes(doc: GraphDocument) -> List[Tuple[float, float, float, float]]:
-    boxes: List[Tuple[float, float, float, float]] = []
-    for n in doc.nodes:
-        if n.geometry:
-            boxes.append((n.geometry.x, n.geometry.y, n.geometry.width, n.geometry.height))
-    for g in doc.groups:
-        if g.geometry:
-            boxes.append((g.geometry.x, g.geometry.y, g.geometry.width, g.geometry.height))
-    return boxes
-
-
-def _overlaps(box: Tuple[float, float, float, float], others, margin: float = 20.0) -> bool:
-    x, y, w, h = box
-    for ox, oy, ow, oh in others:
-        if x < ox + ow + margin and ox < x + w + margin and y < oy + oh + margin and oy < y + h + margin:
-            return True
-    return False
-
-
-# Default icon box sizes mirrored from renderer iconRegistry (Phase 0.5).
-DEFAULT_NODE_SIZES = {
-    "switch": (130, 48), "router": (130, 48), "firewall": (90, 92), "server": (90, 96),
-    "vm": (100, 108), "database": (90, 90), "cloud": (130, 72), "client": (100, 80),
-    "service": (120, 64), "generic": (120, 64),
-}
-
-
-def _anchor_geometry(doc: GraphDocument, node_id: str, edges: List[GraphEdge]) -> Dict[str, Any]:
-    """Find a free rectangle near an adjacent node (anchor insert, docs/03 §6).
-
-    Group members are placed INSIDE their group's box: a full unlocked group
-    grows downward (members untouched), a full locked group raises
-    LAYOUT_CONFLICT instead of moving locked objects. Root-level nodes fall
-    back to free space below the content (canvas growth).
-    """
-    neighbors = [e.source for e in edges if e.target == node_id] + \
-                [e.target for e in edges if e.source == node_id]
-    boxes = _node_boxes(doc)
-    node = next(n for n in doc.nodes if n.id == node_id)
-    if node.geometry is not None:
-        size = {"width": node.geometry.width, "height": node.geometry.height}
-    else:
-        w, h = DEFAULT_NODE_SIZES.get(node.kind, (120, 64))
-        size = {"width": w, "height": h}
-
-    if node.groupId:
-        group = next(g for g in doc.groups if g.id == node.groupId)
-        if group.geometry is None:
-            raise ApiException(
-                ErrorCode.LAYOUT_CONFLICT,
-                f"group '{group.id}' has no geometry; cannot place '{node_id}' inside it",
-                {"relatedIds": [group.id, node_id]},
-            )
-        gbox = (group.geometry.x, group.geometry.y, group.geometry.width, group.geometry.height)
-        inner_boxes = []
-        for n in doc.nodes:
-            if n.id != node_id and n.groupId == group.id and n.geometry:
-                inner_boxes.append((n.geometry.x, n.geometry.y, n.geometry.width, n.geometry.height))
-        bottom = max((b[1] + b[3] for b in inner_boxes), default=gbox[1] + 48)
-        right = max((b[0] + b[2] for b in inner_boxes), default=gbox[0] + 20)
-        first = inner_boxes[0] if inner_boxes else None
-        candidates = [
-            (right + 24, first[1] if first else gbox[1] + 48),
-            (first[0] if first else gbox[0] + 20, bottom + 24),
-        ]
-        for x, y in candidates:
-            candidate = (x, y, size["width"], size["height"])
-            inside = (x >= gbox[0] + 8 and y >= gbox[1] + 8 and
-                      x + size["width"] <= gbox[0] + gbox[2] - 8 and
-                      y + size["height"] <= gbox[1] + gbox[3] - 8)
-            if inside and not _overlaps(candidate, inner_boxes):
-                return {"x": x, "y": y, "width": size["width"], "height": size["height"]}
-        if group.manualLocked:
-            raise ApiException(
-                ErrorCode.LAYOUT_CONFLICT,
-                f"group '{group.id}' is manualLocked and has no free slot; node '{node_id}' "
-                "cannot be inserted without moving locked objects (no automatic re-layout performed)",
-                {"relatedIds": [group.id, node_id]},
-            )
-        # Grow the group downward; member positions stay untouched.
-        return {"x": gbox[0] + 24, "y": bottom + 24, "width": size["width"], "height": size["height"]}
-
-    # Root-level nodes: anchor near a connected node, else below the content.
-    offsets = [(140, 0), (-140, 0), (0, 110), (0, -110), (140, 110), (-140, -110), (280, 0), (0, 220)]
-    for nid in neighbors:
-        n = next((n for n in doc.nodes if n.id == nid), None)
-        if n and n.geometry:
-            ax, ay = n.geometry.x, n.geometry.y
-            for dx, dy in offsets:
-                candidate = (ax + dx, ay + dy, size["width"], size["height"])
-                if not _overlaps(candidate, boxes):
-                    return {"x": ax + dx, "y": ay + dy, "width": size["width"], "height": size["height"]}
-    # Generic free spot: scan below/right of content bounds.
-    max_y = max((b[1] + b[3] for b in boxes), default=0)
-    max_x = max((b[0] + b[2] for b in boxes), default=0)
-    for row in range(0, 12):
-        y = max_y + 60 + row * (size["height"] + 40)
-        for col in range(0, 6):
-            x = 40 + col * (size["width"] + 60)
-            candidate = (x, y, size["width"], size["height"])
-            if not _overlaps(candidate, boxes):
-                return {"x": x, "y": y, "width": size["width"], "height": size["height"]}
-    raise ApiException(
-        ErrorCode.LAYOUT_CONFLICT,
-        f"cannot insert node '{node_id}' without moving or overlapping existing objects; "
-        "no automatic re-layout was performed",
-    )
-
-
 def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
     """Apply the patch to an in-memory copy; raises ApiException on any rule violation."""
     working = _working_copy(doc)
@@ -226,16 +115,6 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
             )
         reasons.append(reason)
 
-    def ids_of_value(value: Any) -> Set[str]:
-        """Node/edge ids referenced by a patch value/changes payload."""
-        refs: Set[str] = set()
-        if isinstance(value, dict):
-            for key in ("source", "target", "groupId", "parentId"):
-                v = value.get(key)
-                if isinstance(v, str):
-                    refs.add(v)
-        return refs
-
     for op in patch["operations"]:
         op_name, op_id = op["op"], op["id"]
         value = op.get("value") or {}
@@ -251,34 +130,13 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                     raise ApiException(ErrorCode.SCHEMA_INVALID, f"add_node: value.id must equal op id '{op_id}'", {"relatedIds": [op_id]})
                 node_data = dict(value)
                 node_data["id"] = op_id
-                if node_data.get("groupId") and node_data["groupId"] not in group_ids:
-                    raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                       f"add_node: groupId '{node_data['groupId']}' does not exist", [op_id])
                 node_data.setdefault("origin", "ai")
                 try:
                     node = GraphNode.model_validate(node_data)
                 except ValidationError as exc:
                     raise ApiException(ErrorCode.SCHEMA_INVALID, f"add_node '{op_id}': invalid node value",
                                        {"errors": [str(e["msg"]) for e in exc.errors()[:5]]})
-                if node.geometry is None:
-                    # Anchor placement happens on a doc that already has this node
-                    # without geometry; assign id first so edges can reference it.
-                    working.nodes.append(node)
-                    geo = _anchor_geometry(working, op_id, working.edges)
-                    node.geometry = _validated_geometry(geo)
-                    layout_plan.addedNodes.append({"id": op_id, "geometry": geo})
-                else:
-                    if _overlaps(
-                        (node.geometry.x, node.geometry.y, node.geometry.width, node.geometry.height),
-                        [b for b in _node_boxes(working) if b != (node.geometry.x, node.geometry.y,
-                                                                 node.geometry.width, node.geometry.height)],
-                    ):
-                        warnings.append(PatchWarning(
-                            code="INSERTED_NODE_OVERLAPS",
-                            message=f"新节点 {op_id} 的显式坐标与现有对象重叠，未自动避让",
-                            relatedIds=[op_id],
-                        ))
-                    working.nodes.append(node)
+                working.nodes.append(node)
                 node_ids.add(op_id)
                 impacted.append(op_id)
             elif op_name == "update_node":
@@ -299,8 +157,8 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                         )
                     node.geometry = _validated_geometry(changes["geometry"])
                     layout_plan.movedNodes.append({"id": op_id, "geometry": changes["geometry"]})
-                if "groupId" in changes and changes["groupId"] is not None:
-                    if changes["groupId"] not in group_ids:
+                if "groupId" in changes:
+                    if changes["groupId"] is not None and changes["groupId"] not in group_ids:
                         raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
                                            f"update_node: groupId '{changes['groupId']}' does not exist", [op_id])
                     node.groupId = changes["groupId"]
@@ -326,6 +184,7 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                     )
                     if cascade:
                         working.edges = [e for e in working.edges if e.id not in attached]
+                        edge_ids.difference_update(attached)
                         impacted.extend(attached)
                 working.nodes = [n for n in working.nodes if n.id != op_id]
                 node_ids.discard(op_id)
@@ -337,10 +196,6 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                     raise ApiException(ErrorCode.GRAPH_DUPLICATE_ID, f"add_edge: id '{op_id}' already exists", {"relatedIds": [op_id]})
                 edge_data = dict(value)
                 edge_data["id"] = op_id
-                for key in ("source", "target"):
-                    if edge_data.get(key) not in node_ids:
-                        raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                           f"add_edge '{op_id}': {key} '{edge_data.get(key)}' is not a node", [op_id])
                 try:
                     edge = GraphEdge.model_validate(edge_data)
                 except ValidationError as exc:
@@ -371,14 +226,8 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                         f"update_edge '{op_id}' changes {', '.join(sorted(endpoint_changes))} (reconnection is high-risk)",
                     )
                 if "source" in changes:
-                    if changes["source"] not in node_ids:
-                        raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                           f"update_edge: source '{changes['source']}' is not a node", [op_id])
                     edge.source = changes["source"]
                 if "target" in changes:
-                    if changes["target"] not in node_ids:
-                        raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                           f"update_edge: target '{changes['target']}' is not a node", [op_id])
                     edge.target = changes["target"]
                 if "kind" in changes:
                     edge.kind = changes["kind"]
@@ -407,9 +256,6 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                     raise ApiException(ErrorCode.GRAPH_DUPLICATE_ID, f"add_group: id '{op_id}' already exists", {"relatedIds": [op_id]})
                 group_data = dict(value)
                 group_data["id"] = op_id
-                if group_data.get("parentId") and group_data["parentId"] not in group_ids:
-                    raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                       f"add_group: parentId '{group_data['parentId']}' does not exist", [op_id])
                 try:
                     group = GraphGroup.model_validate(group_data)
                 except ValidationError as exc:
@@ -434,6 +280,8 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                                            [op_id])
                     group.geometry = _validated_geometry(changes["geometry"])
                     layout_plan.movedNodes.append({"id": op_id, "geometry": changes["geometry"]})
+                if "parentId" in changes:
+                    group.parentId = changes["parentId"]
                 if "label" in changes:
                     group.label = changes["label"]
                 if "style" in changes:
@@ -446,31 +294,46 @@ def preview_patch(doc: GraphDocument, patch: Dict[str, Any]) -> PatchPreview:
                 if group is None:
                     raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
                                        f"remove_group: group '{op_id}' does not exist", [op_id])
-                child_nodes = [n.id for n in working.nodes if n.groupId == op_id]
-                child_groups = [g.id for g in working.groups if g.parentId == op_id]
-                if child_nodes or child_groups:
-                    require(
-                        confirm and cascade,
-                        f"remove_group '{op_id}' would drop {len(child_nodes)} node(s) and {len(child_groups)} sub-group(s)",
-                    )
-                    if cascade:
-                        for nid in list(child_nodes):
-                            attached = [e.id for e in working.edges if e.source == nid or e.target == nid]
-                            working.edges = [e for e in working.edges if e.id not in attached]
-                            impacted.extend(attached)
-                            working.nodes = [n for n in working.nodes if n.id != nid]
-                            node_ids.discard(nid)
-                            impacted.append(nid)
-                        for gid in child_groups:
-                            working.groups = [g for g in working.groups if g.id != gid]
-                            group_ids.discard(gid)
-                            impacted.append(gid)
-                working.groups = [g for g in working.groups if g.id != op_id]
-                group_ids.discard(op_id)
-                impacted.append(op_id)
+                descendants = {op_id}
+                for _ in working.groups:
+                    found = {g.id for g in working.groups if g.parentId in descendants}
+                    if found <= descendants:
+                        break
+                    descendants.update(found)
+                child_nodes = {n.id for n in working.nodes if n.groupId in descendants}
+                if child_nodes or len(descendants) > 1:
+                    require(confirm and cascade, f"remove_group '{op_id}' would remove group members")
+                attached = {e.id for e in working.edges if e.source in child_nodes or e.target in child_nodes}
+                working.nodes = [n for n in working.nodes if n.id not in child_nodes]
+                working.edges = [e for e in working.edges if e.id not in attached]
+                working.groups = [g for g in working.groups if g.id not in descendants]
+                node_ids.difference_update(child_nodes)
+                group_ids.difference_update(descendants)
+                edge_ids.difference_update(attached)
+                impacted.extend(sorted(child_nodes | attached | descendants))
+
+        elif op_name in ("update_layout", "update_theme"):
+            if op_id != working.diagramId or not changes:
+                raise ApiException(ErrorCode.SCHEMA_INVALID, f"{op_name} requires the current diagramId and changes")
+            try:
+                if op_name == "update_layout":
+                    working.layout = LayoutSpec.model_validate(working.layout.model_dump(exclude_none=True) | changes)
+                else:
+                    current = working.appearance.model_dump(exclude_none=True) if working.appearance else {}
+                    working.appearance = Appearance.model_validate(current | changes)
+            except ValidationError as exc:
+                raise ApiException(ErrorCode.SCHEMA_INVALID, f"{op_name}: invalid changes",
+                                   {"errors": [e["msg"] for e in exc.errors()[:5]]}) from exc
+            impacted.append(op_id)
         else:  # pragma: no cover - schema enum prevents this
             raise ApiException(ErrorCode.SCHEMA_INVALID, f"unknown operation '{op_name}'")
 
+    working.schemaVersion = "1.1"
+    try:
+        working = GraphDocument.model_validate(working.model_dump(exclude_none=True))
+    except ValidationError as exc:
+        raise ApiException(ErrorCode.SCHEMA_INVALID, "patched graph fails schema validation",
+                           {"errors": [e["msg"] for e in exc.errors()[:5]]}) from exc
     # Final semantic validation of the working copy.
     from app.graph.validate import collect_graph_issues
     errors, validator_warnings = collect_graph_issues(working)

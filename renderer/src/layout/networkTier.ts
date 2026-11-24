@@ -3,6 +3,7 @@
  * ("云/出口 → 防火墙 → 核心/接入 → 服务器"). A position template decides
  * where devices are drawn; it is never used to invent or alter edges.
  */
+import { networkRoleOf } from '../shapes/catalog.js';
 import type { GraphDocument, GraphEdge, GraphNode } from '../types.js';
 
 const KIND_TIER: Partial<Record<string, number>> = {
@@ -40,6 +41,27 @@ export function networkTierOf(node: Pick<GraphNode, 'kind' | 'properties'>): num
   return KIND_TIER[node.kind];
 }
 
+const ROLE_TIERS = new Map([
+  ['internet', 0], ['edge_router', 1], ['perimeter_security', 2], ['core', 3],
+  ['aggregation', 4], ['internal_security', 5], ['access', 5], ['endpoint', 6],
+]);
+
+function networkRanks(doc: GraphDocument): Map<string, number | undefined> {
+  const ranks = new Map(doc.nodes.map((node) => {
+    const role = networkRoleOf(node);
+    const tier = node.properties?.tier;
+    const fallback = doc.schemaVersion === '1.1' && node.kind === 'cloud' && node.groupId ? 6 :
+      node.kind === 'cloud' && /内部|私有|private|internal/i.test(node.label) ? 6 :
+      networkTierOf(node);
+    return [node.id, typeof tier === 'number' && Number.isInteger(tier) && tier >= 0 && tier <= 999
+      ? tier : (role ? ROLE_TIERS.get(role) : undefined) ?? (fallback === 4 ? 6 : fallback)];
+  }));
+  for (const constraint of doc.layout.constraints ?? []) {
+    if (constraint.type === 'rank') for (const id of constraint.nodes) ranks.set(id, constraint.rank);
+  }
+  return ranks;
+}
+
 export interface OrientedEdge {
   edge: GraphEdge;
   source: string;
@@ -57,23 +79,35 @@ export interface OrientedEdge {
  * graph and the stored XML keep the declared source/target untouched.
  */
 export function orientEdgesForLayout(doc: GraphDocument): OrientedEdge[] {
-  const nodes = new Map(doc.nodes.map((n) => [n.id, n]));
   const isNetwork = doc.diagramType === 'network_topology';
-  // DOWN/RIGHT layouts put the source first (top/left); UP/LEFT put it last.
+  const ranks = isNetwork ? networkRanks(doc) : new Map();
   const sourceFirst = doc.layout.direction === 'DOWN' || doc.layout.direction === 'RIGHT';
+  const legacyOrder = doc.schemaVersion === '1.0';
+  const explicitOrder = new Map<string, string>();
+  for (const rule of doc.layout.constraints ?? []) {
+    if (rule.type !== 'relativePosition') continue;
+    const vertical = doc.layout.direction === 'UP' || doc.layout.direction === 'DOWN';
+    if (vertical !== ['above', 'below'].includes(rule.position)) continue;
+    const sourceIsFirst = ['above', 'left'].includes(rule.position) === sourceFirst;
+    const key = [rule.source, rule.target].sort().join('/');
+    explicitOrder.set(key, sourceIsFirst ? rule.source : rule.target);
+  }
   return doc.edges.map((edge) => {
     let source = edge.source;
     let target = edge.target;
-    const sourceNode = nodes.get(edge.source);
-    const targetNode = nodes.get(edge.target);
-    if (isNetwork && edge.direction === 'undirected' && sourceNode && targetNode) {
-      const sourceTier = networkTierOf(sourceNode);
-      const targetTier = networkTierOf(targetNode);
-      if (sourceTier !== undefined && targetTier !== undefined && sourceTier !== targetTier) {
+    if (isNetwork && edge.direction === 'undirected') {
+      const sourceTier = ranks.get(edge.source);
+      const targetTier = ranks.get(edge.target);
+      const first = explicitOrder.get([edge.source, edge.target].sort().join('/'));
+      if (first) {
+        source = first;
+        target = first === edge.source ? edge.target : edge.source;
+      } else if (sourceTier !== undefined && targetTier !== undefined && sourceTier !== targetTier) {
         const higher = sourceTier < targetTier ? edge.source : edge.target;
         const lower = higher === edge.source ? edge.target : edge.source;
-        source = sourceFirst ? higher : lower;
-        target = sourceFirst ? lower : higher;
+        const preferHigher = !legacyOrder || sourceFirst;
+        source = preferHigher ? higher : lower;
+        target = preferHigher ? lower : higher;
       }
     }
     return { edge, source, target };

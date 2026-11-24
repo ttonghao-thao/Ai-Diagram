@@ -17,7 +17,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["op", "id"],
       "properties": {
-        "op": {"enum": ["add_node", "update_node", "remove_node", "add_edge", "update_edge", "remove_edge", "add_group", "update_group", "remove_group"]},
+        "op": {"enum": ["add_node", "update_node", "remove_node", "add_edge", "update_edge", "remove_edge", "add_group", "update_group", "remove_group", "update_layout", "update_theme"]},
         "id": {"$ref": "#/$defs/id"},
         "value": {"type": "object", "additionalProperties": true},
         "changes": {"type": "object", "additionalProperties": true},

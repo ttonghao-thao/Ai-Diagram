@@ -102,7 +102,7 @@ class ImportResult:
 
 
 def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
-                     diagram_type: str) -> ImportResult:
+                     diagram_type: str, previous_mapping: Optional[Dict[str, str]] = None) -> ImportResult:
     """Build a GraphDocument draft from parsed cells.
 
     - `n_`/`g_`/`e_` cell ids keep their stable graph ids;
@@ -111,7 +111,11 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
     - truly unknown cells (no mapping, no aiKind) are preserved but excluded
       from the semantic graph.
     """
-    used: set = {"0", "1"}
+    reserved = {cell.id[2:] for cell in parsed.cells if re.fullmatch(r"[nge]_[A-Za-z][A-Za-z0-9_-]{0,63}", cell.id)}
+    previous = {cell: graph for graph, cell in (previous_mapping or {}).items()}
+    used = {"0", "1", *reserved, *previous.values()}
+    assigned = set()
+    unknown = {}
     nodes: List[Dict[str, Any]] = []
     groups: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
@@ -120,15 +124,30 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
     mapping_changes: List[str] = []
 
     def graph_id_for(cell: ParsedCell, kind: str) -> str:
-        for prefix in ("n_", "g_", "e_"):
-            if cell.id.startswith(prefix):
-                gid = cell.id[len(prefix):]
-                if gid and re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", gid):
-                    used.add(gid)
-                    return gid
+        existing = previous.get(cell.id)
+        if existing and existing not in assigned:
+            assigned.add(existing)
+            return existing
+        prefix = {"node": "n_", "group": "g_", "edge": "e_"}[kind]
+        gid = cell.id[2:]
+        if cell.id.startswith(prefix) and gid in reserved and gid not in assigned:
+            assigned.add(gid)
+            return gid
         gid = _sanitize_graph_id(cell.id, used)
+        assigned.add(gid)
         mapping_changes.append(f"{cell.id} -> {gid}")
         return gid
+
+    def preserve(cell: ParsedCell) -> None:
+        unknown[cell.id] = {"cellId": cell.id, "wrapped": cell.wrapped, "style": cell.style, "preserved": True}
+
+    def parent_group(cell: ParsedCell) -> Optional[str]:
+        parent = parsed.cell_by_id.get(cell.parent)
+        while parent is not None:
+            if parent.id in cell_to_graph and cell_to_graph[parent.id] in group_ids:
+                return cell_to_graph[parent.id]
+            parent = parsed.cell_by_id.get(parent.parent)
+        return None
 
     # Groups first (they anchor parent-child membership).
     for cell in parsed.cells:
@@ -144,9 +163,9 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
             "id": gid,
             "label": cell.value or gid,
             "geometry": {
-                "x": abs_geo["x"], "y": abs_geo["y"],
-                "width": cell.geometry.width if cell.geometry else 100,
-                "height": cell.geometry.height if cell.geometry else 60,
+                "x": abs_geo["x"] if abs_geo["x"] is not None else 0, "y": abs_geo["y"] if abs_geo["y"] is not None else 0,
+                "width": cell.geometry.width if cell.geometry and cell.geometry.width else 100,
+                "height": cell.geometry.height if cell.geometry and cell.geometry.height else 60,
             },
             "style": {k: v for k, v in style_keys.items()
                       if k in ("fillColor", "strokeColor", "fontColor") and v},
@@ -154,10 +173,23 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
         cell_to_graph[cell.id] = gid
         graph_to_cell[gid] = cell.id
 
+    group_ids = {group["id"] for group in groups}
+    for group in groups:
+        parent = parent_group(parsed.cell_by_id[graph_to_cell[group["id"]]])
+        if parent:
+            group["parentId"] = parent
+
     for cell in parsed.cells:
         if cell.id in ("0", "1") or not cell.vertex:
             continue
         if cell.id in cell_to_graph:  # already a group
+            continue
+        style_keys = parse_style(cell.style)
+        native = style_keys.get("shape", "")
+        if not (cell.id in previous or cell.id.startswith("n_") or "aiKind" in style_keys
+                or native in STENCIL_KIND_MAP or native.startswith(("mxgraph.cisco19.", "mxgraph.networks."))
+                or native in {"rectangle", "ellipse", "cylinder3", "rhombus", "cloud"}):
+            preserve(cell)
             continue
         kind, device_type = _kind_from_style(cell.style)
         gid = graph_id_for(cell, "node")
@@ -168,27 +200,29 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
             "kind": kind,
             "properties": {},
             "geometry": {
-                "x": abs_geo["x"], "y": abs_geo["y"],
-                "width": cell.geometry.width if cell.geometry else 120,
-                "height": cell.geometry.height if cell.geometry else 60,
+                "x": abs_geo["x"] if abs_geo["x"] is not None else 0, "y": abs_geo["y"] if abs_geo["y"] is not None else 0,
+                "width": cell.geometry.width if cell.geometry and cell.geometry.width else 120,
+                "height": cell.geometry.height if cell.geometry and cell.geometry.height else 60,
             },
             "manualLocked": False,
         }
         if device_type:
             node["properties"]["deviceType"] = device_type
-        # Group membership via the first g_ ancestor.
-        parent = parsed.cell_by_id.get(cell.parent) if cell.parent else None
-        while parent is not None:
-            if parent.id in cell_to_graph:
-                node["groupId"] = cell_to_graph[parent.id]
-                break
-            parent = parsed.cell_by_id.get(parent.parent) if parent.parent else None
+        if style_keys.get("aiNetworkRole"):
+            node["properties"]["networkRole"] = style_keys["aiNetworkRole"]
+        parent = parent_group(cell)
+        if parent:
+            node["groupId"] = parent
         nodes.append(node)
         cell_to_graph[cell.id] = gid
         graph_to_cell[gid] = cell.id
 
+    node_ids = {node["id"] for node in nodes}
     for cell in parsed.cells:
         if not cell.edge:
+            continue
+        if cell_to_graph.get(cell.source) not in node_ids or cell_to_graph.get(cell.target) not in node_ids:
+            preserve(cell)
             continue
         eid = graph_id_for(cell, "edge")
         style_keys = parse_style(cell.style)
@@ -219,11 +253,18 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
         if label:
             edge["label"] = label
         if cell.geometry and cell.geometry.points:
-            edge["waypoints"] = [{"x": p["x"], "y": p["y"]} for p in cell.geometry.points]
+            parent = parsed.cell_by_id.get(cell.parent)
+            offset = parsed.absolute_geometry(parent) if parent else {}
+            edge["waypoints"] = [{"x": p["x"] + (offset.get("x") or 0), "y": p["y"] + (offset.get("y") or 0)}
+                                 for p in cell.geometry.points]
         # User-added edges keep orthogonal styling hint in style map
         edges.append(edge)
         cell_to_graph[cell.id] = eid
         graph_to_cell[eid] = cell.id
+
+    for cell in parsed.cells:
+        if cell.id not in ("0", "1") and cell.id not in cell_to_graph:
+            preserve(cell)
 
     layout = {"algorithm": "manual", "direction": "DOWN", "preserveManualPositions": True}
     payload = {
@@ -248,10 +289,7 @@ def graph_from_cells(parsed: ParsedDrawio, diagram_id: str, diagram_name: str,
         graph=doc,
         cell_to_graph_id=cell_to_graph,
         graph_id_to_cell=graph_to_cell,
-        unknown_cells=[
-            {"cellId": c.id, "wrapped": c.wrapped, "style": c.style, "preserved": True}
-            for c in parsed.unknown_cells
-        ],
+        unknown_cells=list(unknown.values()),
         mapping_changes=mapping_changes,
     )
 
@@ -263,6 +301,13 @@ class GraphDiff:
     nodeRenamed: List[Dict[str, Any]] = field(default_factory=list)
     nodeMoved: List[Dict[str, Any]] = field(default_factory=list)
     nodeKindChanged: List[Dict[str, Any]] = field(default_factory=list)
+    nodeResized: List[Dict[str, Any]] = field(default_factory=list)
+    shapeChanged: List[Dict[str, Any]] = field(default_factory=list)
+    styleChanged: List[Dict[str, Any]] = field(default_factory=list)
+    membershipChanged: List[Dict[str, Any]] = field(default_factory=list)
+    edgeWaypointsChanged: List[Dict[str, Any]] = field(default_factory=list)
+    layoutChanged: List[Dict[str, Any]] = field(default_factory=list)
+    appearanceChanged: List[Dict[str, Any]] = field(default_factory=list)
     edgeAdded: List[str] = field(default_factory=list)
     edgeRemoved: List[str] = field(default_factory=list)
     edgeReconnected: List[Dict[str, Any]] = field(default_factory=list)
@@ -274,29 +319,8 @@ class GraphDiff:
     groupRenamed: List[Dict[str, Any]] = field(default_factory=list)
 
     def summary(self) -> Dict[str, Any]:
-        return {
-            "nodeAdded": len(self.nodeAdded),
-            "nodeRemoved": len(self.nodeRemoved),
-            "nodeRenamed": len(self.nodeRenamed),
-            "nodeMoved": len(self.nodeMoved),
-            "nodeKindChanged": len(self.nodeKindChanged),
-            "edgeAdded": len(self.edgeAdded),
-            "edgeRemoved": len(self.edgeRemoved),
-            "edgeReconnected": len(self.edgeReconnected),
-            "edgeLabelChanged": len(self.edgeLabelChanged),
-            "edgeKindChanged": len(self.edgeKindChanged),
-            "edgeDirectionChanged": len(self.edgeDirectionChanged),
-            "groupAdded": len(self.groupAdded),
-            "groupRemoved": len(self.groupRemoved),
-            "groupRenamed": len(self.groupRenamed),
-            "total": sum(len(v) for v in (
-                self.nodeAdded, self.nodeRemoved, self.nodeRenamed, self.nodeMoved,
-                self.nodeKindChanged, self.edgeAdded, self.edgeRemoved,
-                self.edgeReconnected, self.edgeLabelChanged,
-                self.edgeKindChanged, self.edgeDirectionChanged,
-                self.groupAdded, self.groupRemoved, self.groupRenamed,
-            )),
-        }
+        counts = {key: len(items) for key, items in self.__dict__.items()}
+        return dict(counts, total=sum(counts.values()))
 
     def to_payload(self) -> Dict[str, Any]:
         data = {k: v for k, v in self.__dict__.items()}
@@ -323,6 +347,12 @@ def diff_graphs(old: GraphDocument, new: GraphDocument, position_tolerance: floa
                     "from": {"x": o.geometry.x, "y": o.geometry.y},
                     "to": {"x": n.geometry.x, "y": n.geometry.y},
                 })
+        if o.geometry and n.geometry and (abs(o.geometry.width - n.geometry.width) > position_tolerance
+                                         or abs(o.geometry.height - n.geometry.height) > position_tolerance):
+            diff.nodeResized.append({"id": nid, "from": [o.geometry.width, o.geometry.height],
+                                     "to": [n.geometry.width, n.geometry.height]})
+        if o.groupId != n.groupId:
+            diff.membershipChanged.append({"id": nid, "from": o.groupId, "to": n.groupId})
         if o.kind != n.kind:
             diff.nodeKindChanged.append({"id": nid, "from": o.kind, "to": n.kind})
     for nid in old_nodes:
@@ -344,6 +374,8 @@ def diff_graphs(old: GraphDocument, new: GraphDocument, position_tolerance: floa
             })
         if (o.label or "") != (n.label or ""):
             diff.edgeLabelChanged.append({"id": eid, "from": o.label or "", "to": n.label or ""})
+        if (o.waypoints or []) != (n.waypoints or []):
+            diff.edgeWaypointsChanged.append({"id": eid})
         if o.kind != n.kind:
             diff.edgeKindChanged.append({"id": eid, "from": o.kind, "to": n.kind})
         if o.direction != n.direction:
@@ -357,7 +389,9 @@ def diff_graphs(old: GraphDocument, new: GraphDocument, position_tolerance: floa
     for gid in new_groups:
         if gid not in old_groups:
             diff.groupAdded.append(gid)
-        elif old_groups[gid].label != new_groups[gid].label:
+        elif old_groups[gid].parentId != new_groups[gid].parentId:
+            diff.membershipChanged.append({"id": gid, "from": old_groups[gid].parentId, "to": new_groups[gid].parentId})
+        if gid in old_groups and old_groups[gid].label != new_groups[gid].label:
             diff.groupRenamed.append({"id": gid, "from": old_groups[gid].label, "to": new_groups[gid].label})
     for gid in old_groups:
         if gid not in new_groups:

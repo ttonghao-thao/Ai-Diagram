@@ -1,0 +1,155 @@
+[
+  {
+    "id": "cisco.misc.route_switch_processor",
+    "nameZh": "三层交换机",
+    "deviceTypes": [
+      "switch",
+      "layer3_switch",
+      "core_switch"
+    ],
+    "nativeWidth": 40.0,
+    "nativeHeight": 54.66,
+    "defaultWidth": 64,
+    "defaultHeight": 87.46,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;",
+    "aliases": [
+      "核心交换机",
+      "三层交换机",
+      "Core Switch",
+      "Multilayer Switch"
+    ]
+  },
+  {
+    "id": "cisco.routers.router",
+    "nameZh": "路由器",
+    "deviceTypes": [
+      "router"
+    ],
+    "nativeWidth": 49.33,
+    "nativeHeight": 33.33,
+    "defaultWidth": 84,
+    "defaultHeight": 56.75,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.routers.router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.security.ios_firewall",
+    "nameZh": "防火墙",
+    "deviceTypes": [
+      "firewall"
+    ],
+    "nativeWidth": 25.0,
+    "nativeHeight": 41.0,
+    "defaultWidth": 52,
+    "defaultHeight": 85.28,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.servers.server_with_router",
+    "nameZh": "服务器",
+    "deviceTypes": [
+      "server"
+    ],
+    "nativeWidth": 24.66,
+    "nativeHeight": 40.67,
+    "defaultWidth": 52,
+    "defaultHeight": 85.76,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.server_with_router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.storage.cloud",
+    "nameZh": "公网 / 云",
+    "deviceTypes": [
+      "cloud"
+    ],
+    "nativeWidth": 116.34,
+    "nativeHeight": 66.66,
+    "defaultWidth": 170,
+    "defaultHeight": 97.41,
+    "labelPosition": "inside",
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;"
+  },
+  {
+    "id": "cisco.servers.software_based_server",
+    "nameZh": "虚拟服务器",
+    "deviceTypes": [
+      "vm"
+    ],
+    "nativeWidth": 42.0,
+    "nativeHeight": 48.66,
+    "defaultWidth": 74,
+    "defaultHeight": 85.73,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.software_based_server;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.storage.relational_database",
+    "nameZh": "数据库",
+    "deviceTypes": [
+      "database"
+    ],
+    "nativeWidth": 41.33,
+    "nativeHeight": 33.34,
+    "defaultWidth": 84,
+    "defaultHeight": 67.76,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.storage.relational_database;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.computers_and_peripherals.pc",
+    "nameZh": "电脑",
+    "deviceTypes": [
+      "client"
+    ],
+    "nativeWidth": 49.0,
+    "nativeHeight": 44.0,
+    "defaultWidth": 88,
+    "defaultHeight": 79.02,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.computers_and_peripherals.pc;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.misc.access_point",
+    "nameZh": "无线接入点",
+    "deviceTypes": [
+      "access_point"
+    ],
+    "nativeWidth": 47.67,
+    "nativeHeight": 21.0,
+    "defaultWidth": 96,
+    "defaultHeight": 42.29,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.access_point;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.directors.localdirector",
+    "nameZh": "负载均衡器",
+    "deviceTypes": [
+      "load_balancer"
+    ],
+    "nativeWidth": 49.67,
+    "nativeHeight": 32.34,
+    "defaultWidth": 96,
+    "defaultHeight": 62.51,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.directors.localdirector;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.hubs_and_gateways.vpn_gateway",
+    "nameZh": "VPN 网关",
+    "deviceTypes": [
+      "vpn_gateway"
+    ],
+    "nativeWidth": 57.67,
+    "nativeHeight": 30.34,
+    "defaultWidth": 100,
+    "defaultHeight": 52.61,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.hubs_and_gateways.vpn_gateway;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  },
+  {
+    "id": "cisco.hubs_and_gateways.cisco_hub",
+    "nameZh": "集线器",
+    "deviceTypes": [
+      "hub"
+    ],
+    "nativeWidth": 41.0,
+    "nativeHeight": 36.67,
+    "defaultWidth": 76,
+    "defaultHeight": 67.97,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.hubs_and_gateways.cisco_hub;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
+  }
+]

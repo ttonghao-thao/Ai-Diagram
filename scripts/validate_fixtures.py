@@ -44,7 +44,8 @@ def validate_drawio(path: Path) -> None:
 
 
 if __name__ == "__main__":
-    validate_graph(ROOT / "fixtures/network.graph.json")
-    validate_graph(ROOT / "fixtures/business.graph.json")
+    Draft202012Validator.check_schema(SCHEMA)
+    for fixture in sorted((ROOT / "fixtures").rglob("*.graph.json")):
+        validate_graph(fixture)
     validate_drawio(ROOT / "fixtures/network.drawio")
     print("NOTE: Windows draw.io Desktop open/edit/save test still required.")

@@ -14,6 +14,7 @@ Transaction rules (docs/04 section 5):
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import shutil
@@ -63,12 +64,17 @@ class VersionStore:
         patch: Optional[Dict[str, Any]] = None,
         expected_base_version: Optional[int] = None,
         manifest_extra: Optional[Dict[str, Any]] = None,
+        visual_state: Optional[Dict[str, Any]] = None,
+        quality: Optional[Dict[str, Any]] = None,
+        source_drawio: Optional[bytes] = None,
     ) -> VersionRow:
         """Validate baseVersion, stage files, atomically publish a new version."""
         diagram = self.db.get_diagram(diagram_id)
-        if diagram is None:
+        if diagram is None and origin != "initial":
             raise ApiException(ErrorCode.DIAGRAM_NOT_FOUND, f"diagram '{diagram_id}' does not exist")
-        current = diagram.current_version
+        if diagram is not None and origin == "initial" and diagram.current_version:
+            raise ApiException(ErrorCode.DIAGRAM_ALREADY_EXISTS, f"diagram '{diagram_id}' already exists")
+        current = diagram.current_version if diagram is not None else 0
         if expected_base_version is not None and expected_base_version != current:
             raise ApiException(
                 ErrorCode.VERSION_CONFLICT,
@@ -108,13 +114,27 @@ class VersionStore:
                 patch_path = staged / "patch.json"
                 patch_path.write_text(json.dumps(patch, ensure_ascii=False, indent=2), encoding="utf-8")
                 manifest["patch.json"] = sha256_file(patch_path)
+            for filename, data in (("visual-state.json", visual_state), ("quality.json", quality)):
+                if data is not None:
+                    target = staged / filename
+                    target.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                    manifest["sha256"][filename] = sha256_file(target)
+            if source_drawio is not None:
+                source_file = staged / "source.drawio"
+                source_file.write_bytes(source_drawio)
+                manifest["sha256"]["source.drawio"] = sha256_file(source_file)
             if manifest_extra:
                 manifest.update(manifest_extra)
             manifest_path = staged / "manifest.json"
             manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
             # Atomic publish: rename(2) within the same filesystem.
-            staged.rename(published)
+            try:
+                staged.rename(published)
+            except OSError as exc:
+                if exc.errno in (errno.EEXIST, errno.ENOTEMPTY):
+                    raise ApiException(ErrorCode.VERSION_CONFLICT, "another request is committing this version") from exc
+                raise
         finally:
             shutil.rmtree(staged, ignore_errors=True)
 
@@ -124,21 +144,17 @@ class VersionStore:
             parent_version=parent_version,
             graph_path=str(published / "graph.json"),
             drawio_path=str(published / "diagram.drawio"),
-            patch_path=str(patch_path) if patch_path else None,
+            patch_path=str(published / "patch.json") if patch_path else None,
             manifest_path=str(published / "manifest.json"),
             sha256=drawio_sha,
             origin=origin,
             created_at=manifest["createdAt"],
         )
         try:
-            self.db.insert_version(row)
-            advanced = self.db.set_current_version(diagram_id, next_version, row.created_at)
-            if not advanced:
-                raise ApiException(
-                    ErrorCode.VERSION_CONFLICT,
-                    f"concurrent update: diagram '{diagram_id}' already advanced beyond v{next_version}",
-                    {"currentVersion": self.db.get_diagram(diagram_id).current_version},
-                )
+            if diagram is None:
+                self.db.insert_version(row, new_diagram=(diagram_name, diagram_type))
+            else:
+                self.db.insert_version(row)
         except ApiException:
             self._recover(published)
             raise
@@ -173,3 +189,13 @@ class VersionStore:
         if row is None:
             raise ApiException(ErrorCode.VERSION_NOT_FOUND, f"diagram '{diagram_id}' has no version {version}")
         return json.loads(Path(row.manifest_path).read_text(encoding="utf-8"))
+
+    def read_artifact(self, diagram_id: str, version: int, name: str) -> Optional[Dict[str, Any]]:
+        if name not in {"visual-state", "quality"}:
+            raise ValueError("unknown version artifact")
+        manifest = self.read_manifest(diagram_id, version)
+        filename = f"{name}.json"
+        if filename not in manifest["sha256"]:
+            return None
+        path = self.version_dir(diagram_id, version) / filename
+        return json.loads(path.read_text(encoding="utf-8"))

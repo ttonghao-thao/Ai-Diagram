@@ -19,18 +19,16 @@
  * Custom SVG icons are supported and embedded as data URIs directly in the
  * cell style — draw.io renders them without any network request.
  *
- * All node labels are rendered BELOW the icon (verticalLabelPosition=bottom),
- * so the ELK layout inflates node boxes by LABEL_BAND_HEIGHT to reserve the
- * label area (layout "considers" icon size + device name).
+ * Most icon styles place labels below the vertex. The shared resolver
+ * measures the label footprint separately for layout.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ErrorCodes, RenderError } from '../errors.js';
+import { shapeCatalog, themes } from './catalog.js';
+import { inspectSvg } from './svg.js';
 import { NODE_STYLES } from './styles.js';
-import type { GraphDocument, GraphNode, NodeKind, StyleMap } from '../types.js';
-
-/** Extra vertical space the layout reserves below each icon for its label. */
-export const LABEL_BAND_HEIGHT = 24;
+import type { GraphNode, NodeKind, StyleMap } from '../types.js';
 
 const MAX_SVG_BYTES = 64 * 1024;
 
@@ -61,20 +59,6 @@ function labelBelow(style: string): string {
 function networksStencil(name: string): string {
   // Verified conversion: packageName '.' + name.toLowerCase().replace(/ /g,'_')
   return `shape=mxgraph.networks.${name};`;
-}
-
-const CISCO_BLUE = '#036897';
-
-/** Legacy Cisco stencil style. The stencils take their color from fillColor. */
-function ciscoStencil(id: string, opts: { fill?: string; stroke?: string; labelInside?: boolean } = {}): string {
-  const style =
-    `sketch=0;outlineConnect=0;html=1;fillColor=${opts.fill ?? CISCO_BLUE};` +
-    `strokeColor=${opts.stroke ?? '#FFFFFF'};pointerEvents=1;shape=mxgraph.cisco.${id};`;
-  if (opts.labelInside) {
-    return style + 'verticalAlign=middle;align=center;fontColor=#000000;';
-  }
-  // spacingTop keeps the label clear of icons whose art reaches the bottom edge.
-  return style + 'verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;';
 }
 
 /**
@@ -202,95 +186,22 @@ export const ALIAS_REGISTRY: Record<string, IconDescriptor> = {
   },
 };
 
-/**
- * Cisco theme by NodeKind (native stencil aspect kept, scaled for readability).
- * Kinds without an entry (`service`, `generic`) keep their networks/flat icon.
- */
-export const CISCO_ICON_REGISTRY: Partial<Record<NodeKind, IconDescriptor>> = {
-  // storage.xml "Cloud" (116x66) — outline cloud, label inside (as in Cisco templates)
-  cloud: {
-    stencilStyle: ciscoStencil('storage.cloud', { fill: '#FFFFFF', stroke: '#000000', labelInside: true }),
-    fallbackStyle: labelBelow(NODE_STYLES.cloud),
-    width: 170, height: 97, source: 'stencil:mxgraph.cisco', labelInside: true,
-  },
-  // routers.xml "Router" (49x33)
-  router: {
-    stencilStyle: ciscoStencil('routers.router'),
-    fallbackStyle: labelBelow(NODE_STYLES.router),
-    width: 84, height: 57, source: 'stencil:mxgraph.cisco',
-  },
-  // security.xml "IOS Firewall" (25x41): brick wall over four-way arrows
-  firewall: {
-    stencilStyle: ciscoStencil('security.ios_firewall'),
-    fallbackStyle: labelBelow(NODE_STYLES.firewall),
-    width: 52, height: 85, source: 'stencil:mxgraph.cisco',
-  },
-  // misc.xml "Route Switch Processor" (40x55): the classic Cisco multilayer switch icon
-  switch: {
-    stencilStyle: ciscoStencil('misc.route_switch_processor'),
-    fallbackStyle: labelBelow(NODE_STYLES.switch),
-    width: 64, height: 87, source: 'stencil:mxgraph.cisco',
-  },
-  // servers.xml "Server With Router" (25x41): Cisco server tower
-  server: {
-    stencilStyle: ciscoStencil('servers.server_with_router'),
-    fallbackStyle: labelBelow(NODE_STYLES.server),
-    width: 52, height: 86, source: 'stencil:mxgraph.cisco',
-  },
-  // servers.xml "Software Based Server" (42x49) — closest to a virtual machine
-  vm: {
-    stencilStyle: ciscoStencil('servers.software_based_server'),
-    fallbackStyle: labelBelow(NODE_STYLES.vm),
-    width: 74, height: 86, source: 'stencil:mxgraph.cisco',
-  },
-  // storage.xml "Relational Database" (41x33)
-  database: {
-    stencilStyle: ciscoStencil('storage.relational_database'),
-    fallbackStyle: labelBelow(NODE_STYLES.database),
-    width: 84, height: 68, source: 'stencil:mxgraph.cisco',
-  },
-  // computers_and_peripherals.xml "PC" (49x44)
-  client: {
-    stencilStyle: ciscoStencil('computers_and_peripherals.pc'),
-    fallbackStyle: labelBelow(NODE_STYLES.client),
-    width: 88, height: 79, source: 'stencil:mxgraph.cisco',
-  },
-};
+/** Legacy accessors backed by the same Cisco catalog used by the renderer. */
+function ciscoDescriptor(key: string): IconDescriptor {
+  const entry = shapeCatalog().get(themes.get('cisco')!.devices[key])!;
+  return {
+    stencilStyle: entry.style,
+    fallbackStyle: ICON_REGISTRY[key as NodeKind]?.fallbackStyle ?? ICON_REGISTRY.generic.fallbackStyle,
+    width: entry.defaultWidth, height: entry.defaultHeight,
+    source: 'stencil:mxgraph.cisco', labelInside: entry.labelPosition === 'inside',
+  };
+}
 
-/** Cisco theme aliases; aliases without an entry fall back to ALIAS_REGISTRY. */
-export const CISCO_ALIAS_REGISTRY: Record<string, IconDescriptor> = {
-  access_point: {
-    stencilStyle: ciscoStencil('misc.access_point'),
-    fallbackStyle: labelBelow(NODE_STYLES.generic),
-    width: 96, height: 42, source: 'stencil:mxgraph.cisco',
-  },
-  load_balancer: {
-    stencilStyle: ciscoStencil('directors.localdirector'),
-    fallbackStyle: labelBelow(NODE_STYLES.generic),
-    width: 96, height: 63, source: 'stencil:mxgraph.cisco',
-  },
-  vpn_gateway: {
-    stencilStyle: ciscoStencil('hubs_and_gateways.vpn_gateway'),
-    fallbackStyle: labelBelow(NODE_STYLES.generic),
-    width: 100, height: 53, source: 'stencil:mxgraph.cisco',
-  },
-  hub: {
-    stencilStyle: ciscoStencil('hubs_and_gateways.cisco_hub'),
-    fallbackStyle: labelBelow(NODE_STYLES.generic),
-    width: 76, height: 68, source: 'stencil:mxgraph.cisco',
-  },
-};
-
-/**
- * Document-level theme: `metadata.iconTheme` overrides the default
- * (network_topology -> cisco, everything else -> networks).
- */
-export function resolveDocTheme(doc: Pick<GraphDocument, 'diagramType' | 'metadata'>): IconTheme {
-  const override = doc.metadata?.iconTheme;
-  if (override === 'cisco' || override === 'networks') {
-    return override;
-  }
-  return doc.diagramType === 'network_topology' ? 'cisco' : 'networks';
+export const CISCO_ICON_REGISTRY: Partial<Record<NodeKind, IconDescriptor>> = {};
+export const CISCO_ALIAS_REGISTRY: Record<string, IconDescriptor> = Object.create(null);
+for (const key of Object.keys(themes.get('cisco')!.devices)) {
+  if (Object.hasOwn(ICON_REGISTRY, key)) CISCO_ICON_REGISTRY[key as NodeKind] = ciscoDescriptor(key);
+  else CISCO_ALIAS_REGISTRY[key] = ciscoDescriptor(key);
 }
 
 /** Keys a custom SVG may be registered under (alias names, lowercased). */
@@ -440,18 +351,18 @@ export function resolveNodeIcon(
   //    (e.g. a generic node typed "firewall").
   if (deviceType) {
     const alias = deviceType.toLowerCase();
-    const extended = (theme === 'cisco' ? CISCO_ALIAS_REGISTRY[alias] : undefined) ?? ALIAS_REGISTRY[alias];
+    const extended = (theme === 'cisco' ? CISCO_ALIAS_REGISTRY[alias] : undefined) ?? (Object.hasOwn(ALIAS_REGISTRY, alias) ? ALIAS_REGISTRY[alias] : undefined);
     if (extended) {
       return finish(extended.stencilStyle, extended.width, extended.height, 'alias-stencil');
     }
     const kindAlias = alias as NodeKind;
-    if (kindAlias !== node.kind && kindAlias in ICON_REGISTRY) {
+    if (kindAlias !== node.kind && Object.hasOwn(ICON_REGISTRY, kindAlias)) {
       const desc = (theme === 'cisco' ? CISCO_ICON_REGISTRY[kindAlias] : undefined) ?? ICON_REGISTRY[kindAlias];
       return finish(desc.stencilStyle, desc.width, desc.height, 'alias-stencil');
     }
   }
   // 4. Registry stencil by kind (theme library first, networks as fallback).
-  const desc = (theme === 'cisco' ? CISCO_ICON_REGISTRY[node.kind] : undefined) ?? ICON_REGISTRY[node.kind];
+  const desc = (theme === 'cisco' ? CISCO_ICON_REGISTRY[node.kind] : undefined) ?? (Object.hasOwn(ICON_REGISTRY, node.kind) ? ICON_REGISTRY[node.kind] : undefined);
   if (desc) {
     return finish(desc.stencilStyle, desc.width, desc.height, 'kind-stencil');
   }
@@ -472,22 +383,6 @@ export function measureLabelWidth(label: string): number {
     }
   }
   return 13 * cjk + 7 * ascii;
-}
-
-/**
- * Icon box size for a node: explicit geometry wins; otherwise registry
- * defaults widened (never narrowed) to fit the device name.
- */
-export function resolveNodeSize(node: GraphNode, theme: IconTheme = 'networks'): { width: number; height: number } {
-  if (node.geometry && node.geometry.width > 0 && node.geometry.height > 0) {
-    return { width: node.geometry.width, height: node.geometry.height };
-  }
-  const icon = resolveNodeIcon(node, { theme });
-  const labelWidth = measureLabelWidth(node.label) + 24;
-  return {
-    width: Math.max(icon.width, Math.min(Math.ceil(labelWidth), 300)),
-    height: icon.height,
-  };
 }
 
 /**
@@ -515,12 +410,7 @@ export function loadCustomIcons(dir: string): Map<string, string> {
         `custom icon ${entry} is ${bytes} bytes, exceeds the ${MAX_SVG_BYTES}-byte limit`,
       );
     }
-    if (!/<svg[\s>]/i.test(raw)) {
-      throw new RenderError(ErrorCodes.DRAWIO_UNSUPPORTED_CONTENT, `custom icon ${entry} is not an SVG document`);
-    }
-    if (/<script[\s>]/i.test(raw) || /javascript:/i.test(raw)) {
-      throw new RenderError(ErrorCodes.DRAWIO_UNSUPPORTED_CONTENT, `custom icon ${entry} contains executable content`);
-    }
+    inspectSvg(raw);
     const name = entry.slice(0, -4).toLowerCase();
     icons.set(name, svgToDataUri(raw));
   }

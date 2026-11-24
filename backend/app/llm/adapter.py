@@ -334,7 +334,7 @@ class MockLlmAdapter:
 # failing the whole draft. Structural errors still fail normally.
 _GRAPH_ROOT_FIELDS = {
     "schemaVersion", "diagramId", "name", "diagramType",
-    "nodes", "groups", "edges", "layout", "metadata", "warnings",
+    "nodes", "groups", "edges", "layout", "appearance", "metadata", "warnings",
 }
 _GRAPH_SECTION_FIELDS = {
     "nodes": {"id", "label", "kind", "groupId", "properties", "geometry",
@@ -393,12 +393,11 @@ def normalize_llm_graph_draft(raw: Dict[str, Any]) -> Dict[str, Any]:
                 continue
             extra = set(item) - allowed
             if extra:
-                logger.info("llm draft: dropped %s fields %s on '%s'",
-                            section, sorted(extra), item.get("id", "?"))
+                logger.info("llm draft: dropped %s unexpected fields in %s", len(extra), section)
                 item = {k: v for k, v in item.items() if k in allowed}
+            item = {key: value for key, value in item.items() if key not in {"style", "geometry", "waypoints", "manualLocked"}}
             if section == "edges" and item.get("kind") == "physical" and is_generic_edge_label(item.get("label")):
-                logger.info("llm draft: dropped generic label %r on physical edge '%s'",
-                            item.get("label"), item.get("id", "?"))
+                logger.info("llm draft: dropped a generic physical edge label")
                 item.pop("label", None)
             cleaned.append(item)
         out[section] = cleaned
@@ -408,6 +407,42 @@ def normalize_llm_graph_draft(raw: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # OpenAI-compatible adapter.
 # ---------------------------------------------------------------------------
+
+_IP_CANDIDATE = re.compile(
+    r"(?<![a-zA-Z0-9_.:])(?:[0-9]{1,3}(?:\.[0-9]{1,3}){3}|[a-fA-F0-9]*:[a-fA-F0-9:.]+)(?:/[0-9]{1,3})?(?![a-zA-Z0-9_.:])"
+)
+
+
+def _mask_addresses(text: str, addresses: dict) -> str:
+    import ipaddress
+
+    def replace(match):
+        address = match.group()
+        try:
+            ipaddress.ip_interface(address)
+        except ValueError:
+            return address
+        if address not in addresses:
+            addresses[address] = f"private_address_{len(addresses) + 1:03d}"
+        return addresses[address]
+    return _IP_CANDIDATE.sub(replace, text)
+
+
+def _restore_addresses(obj, addresses: dict):
+    if not addresses:
+        return
+    if isinstance(obj, list):
+        for value in obj:
+            _restore_addresses(value, addresses)
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            if isinstance(value, str) and key not in {"id", "source", "target", "diagramId", "groupId", "parentId", "centerNodeId"}:
+                for address, placeholder in addresses.items():
+                    value = value.replace(placeholder, address)
+                obj[key] = value
+            else:
+                _restore_addresses(value, addresses)
+
 
 class OpenAICompatibleAdapter:
     name = "openai"
@@ -420,6 +455,8 @@ class OpenAICompatibleAdapter:
         timeout_seconds: int = 60,
         max_retries: int = 2,
         provider_label: str = "openai",
+        reasoning_effort: str = "",
+        private_endpoint: bool = False,
     ) -> None:
         if not base_url:
             raise ApiException(ErrorCode.LLM_UNAVAILABLE, "LLM_BASE_URL is not configured")
@@ -429,6 +466,10 @@ class OpenAICompatibleAdapter:
         self.timeout_seconds = timeout_seconds
         self.max_retries = max(0, max_retries)
         self.provider_label = provider_label
+        self.reasoning_effort = reasoning_effort
+        from urllib.parse import urlparse
+
+        self.private_endpoint = private_endpoint or urlparse(self.base_url).hostname in {"localhost", "127.0.0.1", "::1"}
 
     async def _chat(self, system_prompt: str, user_prompt: str) -> str:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
@@ -441,6 +482,8 @@ class OpenAICompatibleAdapter:
             "temperature": 0,
             "response_format": {"type": "json_object"},
         }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
         url = f"{self.base_url}/chat/completions"
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
@@ -484,7 +527,9 @@ class OpenAICompatibleAdapter:
 
     async def parse_graph(self, text: str, diagram_type: str) -> GraphDocument:
         system_prompt = parse_graph_system_prompt()
-        user_prompt = parse_graph_user_prompt(text, diagram_type)
+        addresses: dict = {}
+        sanitized = text if self.private_endpoint else _mask_addresses(text, addresses)
+        user_prompt = parse_graph_user_prompt(sanitized, diagram_type)
         feedback = ""
         last_errors: List[str] = []
         for attempt in range(self.max_retries + 1):
@@ -495,6 +540,7 @@ class OpenAICompatibleAdapter:
                 if not isinstance(raw, dict):
                     raise ValueError("output is not a JSON object")
                 raw = normalize_llm_graph_draft(raw)
+                _restore_addresses(raw, addresses)
                 doc = GraphDocument.model_validate(raw)
                 logger.info("parse_graph ok: %d nodes, %d edges (attempt %d)",
                             len(doc.nodes), len(doc.edges), attempt + 1)
@@ -520,8 +566,21 @@ class OpenAICompatibleAdapter:
 
     async def propose_patch(self, instruction: str, graph: GraphDocument, base_version: int) -> Dict[str, Any]:
         system_prompt = propose_patch_system_prompt()
-        graph_json = graph.model_dump_json(exclude_none=True)
+        payload = graph.model_dump(exclude_none=True)
+        for node in payload["nodes"]:
+            node["properties"] = {k: v for k, v in node["properties"].items()
+                                  if k in {"deviceType", "networkRole", "tier"}}
+        for name in ("nodes", "groups", "edges"):
+            for entity in payload[name]:
+                for key in ("style", "geometry", "waypoints", "sourcePort", "targetPort"):
+                    entity.pop(key, None)
+        payload.pop("metadata", None)
+        payload.pop("warnings", None)
+        graph_json = json.dumps(payload, ensure_ascii=False)
         user_prompt = propose_patch_user_prompt(instruction, graph_json, base_version)
+        addresses: dict = {}
+        if not self.private_endpoint:
+            user_prompt = _mask_addresses(user_prompt, addresses)
         feedback = ""
         last_errors: List[str] = []
         for attempt in range(self.max_retries + 1):
@@ -533,8 +592,26 @@ class OpenAICompatibleAdapter:
                     raise ValueError("output is not a JSON object")
                 if raw.get("baseVersion") != base_version:
                     raise ValueError(f"baseVersion must be {base_version}")
-                return raw
-            except (json.JSONDecodeError, ValueError) as exc:
+                operations = raw.get("operations")
+                if not isinstance(operations, list):
+                    raise ValueError("operations must be an array")
+                _restore_addresses(raw, addresses)
+                for operation in operations:
+                    if not isinstance(operation, dict):
+                        continue
+                    for field in ("value", "changes"):
+                        obj = operation.get(field)
+                        if not isinstance(obj, dict):
+                            continue
+                        style = obj.pop("style", None)
+                        shape = style.get("shapeId") if isinstance(style, dict) else None
+                        if operation.get("op") in ("add_node", "update_node") and isinstance(shape, str) and shape and shape in instruction:
+                            obj["style"] = {"shapeId": shape}
+                        for key in ("geometry", "waypoints"):
+                            obj.pop(key, None)
+                from app.graph.patch import validate_patch_payload
+                return validate_patch_payload(raw)
+            except (json.JSONDecodeError, ValueError, ApiException) as exc:
                 last_errors = [str(exc)]
                 feedback = repair_feedback_prompt(last_errors)
         raise ApiException(
@@ -561,5 +638,7 @@ def build_adapter(settings) -> LlmAdapter:
             timeout_seconds=settings.llm_timeout_seconds,
             max_retries=settings.llm_max_retries,
             provider_label=f"openai:{settings.llm_model or 'default'}",
+            reasoning_effort=settings.llm_reasoning_effort,
+            private_endpoint=settings.llm_private_endpoint,
         )
     raise ApiException(ErrorCode.LLM_UNAVAILABLE, f"unknown LLM_PROVIDER '{settings.llm_provider}'")

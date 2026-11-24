@@ -37,6 +37,35 @@ async function request<T = any>(path: string, init?: RequestInit): Promise<{ dat
   return { data: body.data as T, requestId: body.requestId };
 }
 
+export interface Quality {
+  ok: boolean;
+  counts: { nodes: number; edges: number; matchedShapes: number; warnings: number; errors: number };
+  issues: { code: string; message: string; relatedIds: string[]; severity: string }[];
+  truncated: boolean;
+}
+export interface Theme {
+  id: string;
+  name: string;
+  iconLibrary: string;
+  edge: { routing: string; labelPolicy: string; arrowPolicy: string };
+  layout: { nodeSpacing: number; layerSpacing: number };
+}
+export interface Material {
+  id: string; name: string; nameZh?: string; library: string; category: string;
+  assetType: 'svg' | 'stencil' | 'cell_template';
+  defaultWidth: number; defaultHeight: number; favorite: boolean; usable?: boolean;
+  verified: boolean; style?: string; thumbnail?: boolean;
+}
+export interface ShapePreferences {
+  mappings: Record<string, string>;
+  favorites: string[];
+  deviceTypes: string[];
+}
+
+function jsonRequest<T = any>(path: string, method: string, payload: unknown) {
+  return request<T>(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+}
+
 export const api = {
   health: () => request('/api/v1/health'),
   listDiagrams: () => request('/api/v1/diagrams'),
@@ -48,11 +77,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(graph),
     }),
-  parseText: (text: string, diagramType: string) =>
+  parseText: (text: string, diagramType: string, options: Record<string, unknown> = {}) =>
     request('/api/v1/diagrams/parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, diagramType }),
+      body: JSON.stringify({ text, diagramType, ...options }),
     }),
   validateGraph: (graph: unknown) =>
     request('/api/v1/diagrams/-/validate', {
@@ -60,11 +89,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ graph }),
     }),
-  layoutDiagram: (id: string, baseVersion: number) =>
+  layoutDiagram: (id: string, baseVersion: number, options: Record<string, unknown> = {}) =>
     request(`/api/v1/diagrams/${encodeURIComponent(id)}/layout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baseVersion }),
+      body: JSON.stringify({ baseVersion, ...options }),
     }),
   importPreview: (id: string, file: File, baseVersion: number) => {
     const form = new FormData();
@@ -96,6 +125,28 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetVersion, baseVersion }),
     }),
+  quality: (id: string, version?: number) =>
+    jsonRequest<{ version: number; quality: Quality }>(`/api/v1/diagrams/${encodeURIComponent(id)}/quality`, 'POST', { version }),
+  themes: () => request<{ themes: Theme[] }>('/api/v1/themes'),
+  searchShapes: (parameters: URLSearchParams) =>
+    request<{ items: Material[]; total: number; catalogVersion: string }>(`/api/v1/shapes/search?${parameters}`),
+  shape: (id: string) => request<Material>(`/api/v1/shapes/${encodeURIComponent(id)}`),
+  shapeThumbnail: (id: string) => `/api/v1/shapes/${encodeURIComponent(id)}/thumbnail`,
+  shapePreview: (id: string) => `/api/v1/shapes/${encodeURIComponent(id)}/preview`,
+  preferences: () => request<ShapePreferences>('/api/v1/preferences/shapes'),
+  updatePreferences: (changes: Partial<ShapePreferences>) =>
+    jsonRequest<ShapePreferences>('/api/v1/preferences/shapes', 'PUT', changes),
+  importMaterial: (form: FormData) => request<{ items: Material[] }>('/api/v1/shapes/import', { method: 'POST', body: form }),
+  async exportMaterials(ids: string[]) {
+    const response = await fetch('/api/v1/shapes/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) {
+      const { error } = await response.json();
+      throw new ApiError(error.code, error.message, error.details, response.status);
+    }
+    return response.blob();
+  },
   exportUrl: (id: string, version?: number) =>
     `/api/v1/diagrams/${encodeURIComponent(id)}/export/drawio${version ? `?version=${version}` : ''}`,
 };

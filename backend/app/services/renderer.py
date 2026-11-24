@@ -1,36 +1,37 @@
-"""Bridge to the TypeScript renderer CLI (docs/01 section 7).
-
-Security rules (docs/04 section 6):
-  - the renderer is invoked with an argv array, shell=False;
-  - fixed timeout and captured-output size limit;
-  - user input never touches a shell string.
-"""
+"""Bounded, shell-free bridge to the TypeScript renderer CLI."""
 from __future__ import annotations
 
 import json
 import re
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from app.schemas.api import ApiException, ErrorCode
 
 ERROR_LINE = re.compile(r"^(ERROR|WARNING)\s+([A-Z0-9_]+):\s+(.*)$")
+KNOWN_ERRORS = {
+    ErrorCode.SCHEMA_INVALID, ErrorCode.GRAPH_DUPLICATE_ID, ErrorCode.GRAPH_INVALID_REFERENCE,
+    ErrorCode.GRAPH_GROUP_CYCLE, ErrorCode.LAYOUT_CONFLICT, ErrorCode.DRAWIO_PARSE_FAILED,
+    ErrorCode.DRAWIO_UNSUPPORTED_CONTENT, ErrorCode.TOPOLOGY_MISMATCH,
+}
 
 
+@dataclass
 class RenderResult:
-    def __init__(self, drawio_bytes: bytes, warnings: list[dict]) -> None:
-        self.drawio_bytes = drawio_bytes
-        self.warnings = warnings  # [{code, message, severity}]
+    drawio_bytes: bytes
+    warnings: list[dict]
+    quality: dict
 
 
 def _parse_cli_output(stderr: str) -> list[dict]:
     issues = []
     for line in stderr.splitlines():
-        m = ERROR_LINE.match(line.strip())
-        if m:
-            issues.append({"severity": m.group(1).lower(), "code": m.group(2), "message": m.group(3)})
+        match = ERROR_LINE.match(line.strip())
+        if match:
+            issues.append({"severity": match[1].lower(), "code": match[2], "message": match[3]})
     return issues
 
 
@@ -50,74 +51,71 @@ class RendererService:
     def available(self) -> bool:
         return self.cli_path.is_file()
 
-    def render(self, graph: Dict[str, Any]) -> RenderResult:
+    def _run(self, command: str, args: list[str]) -> tuple[int, list[dict]]:
         if not self.available():
-            raise ApiException(
-                ErrorCode.RENDERER_UNAVAILABLE,
-                f"renderer CLI not found at {self.cli_path}; run `cd renderer && npm run build`",
-            )
-        with tempfile.TemporaryDirectory(prefix="ai-render-") as tmp:
-            tmp_path = Path(tmp)
-            input_path = tmp_path / "graph.json"
-            output_path = tmp_path / "diagram.drawio"
-            input_path.write_text(json.dumps(graph, ensure_ascii=False), encoding="utf-8")
-            argv = ["node", str(self.cli_path), "generate", "--input", str(input_path), "--output", str(output_path)]
-            if self.icons_dir is not None:
-                argv += ["--icons-dir", str(self.icons_dir)]
-            try:
+            raise ApiException(ErrorCode.RENDERER_UNAVAILABLE, "renderer CLI not found; build renderer with npm run build")
+        argv = ["node", str(self.cli_path), command, *args]
+        if self.icons_dir is not None and command != "validate":
+            argv.extend(["--icons-dir", str(self.icons_dir)])
+        try:
+            with tempfile.TemporaryFile() as diagnostics:
                 proc = subprocess.run(
-                    argv,
-                    shell=False,
-                    capture_output=True,
-                    timeout=self.timeout_seconds,
+                    argv, shell=False, stdout=subprocess.DEVNULL, stderr=diagnostics, timeout=self.timeout_seconds,
                 )
-            except subprocess.TimeoutExpired as exc:
+                diagnostics.seek(0)
+                stderr = diagnostics.read(min(self.output_limit_bytes, 64 * 1024)).decode("utf-8", "replace")
+        except subprocess.TimeoutExpired as exc:
+            raise ApiException(ErrorCode.RENDERER_FAILED, f"renderer timed out after {self.timeout_seconds}s") from exc
+        except OSError as exc:
+            raise ApiException(ErrorCode.RENDERER_UNAVAILABLE, "renderer could not be started") from exc
+        return proc.returncode, _parse_cli_output(stderr)
+
+    def _read(self, path: Path) -> bytes:
+        if not path.is_file() or path.stat().st_size > self.output_limit_bytes:
+            raise ApiException(ErrorCode.RENDERER_FAILED, "renderer output is missing or exceeds the size limit")
+        return path.read_bytes()
+
+    def _invoke(self, command: str, graph: Dict[str, Any], context=None, drawio=None) -> tuple[bytes, Any]:
+        with tempfile.TemporaryDirectory(prefix="ai-render-") as folder:
+            root = Path(folder)
+            graph_path = root / "graph.json"
+            result = root / "result"
+            graph_path.write_text(json.dumps(graph, ensure_ascii=False, allow_nan=False), encoding="utf-8")
+            args = ["--input", str(graph_path), "--output", str(result)]
+            if context:
+                context_path = root / "context.json"
+                context_path.write_text(json.dumps(context, ensure_ascii=False, allow_nan=False), encoding="utf-8")
+                args.extend(["--context", str(context_path)])
+            if drawio is not None:
+                drawio_path = root / "input.drawio"
+                drawio_path.write_bytes(drawio)
+                args.extend(["--drawio", str(drawio_path)])
+            if command == "generate":
+                report = root / "quality.json"
+                args.extend(["--report", str(report)])
+            code, issues = self._run(command, args)
+            if code:
+                first = next((issue for issue in issues if issue["severity"] == "error"), {})
+                error = first.get("code")
                 raise ApiException(
-                    ErrorCode.RENDERER_FAILED,
-                    f"renderer timed out after {self.timeout_seconds}s",
-                ) from exc
-            stderr = (proc.stderr or b"").decode("utf-8", "replace")[: self.output_limit_bytes]
-            stdout = (proc.stdout or b"").decode("utf-8", "replace")[: self.output_limit_bytes]
-            issues = _parse_cli_output(stderr)
-            if proc.returncode != 0:
-                codes = [i["code"] for i in issues if i["severity"] == "error"]
-                code = codes[0] if codes else ErrorCode.RENDERER_FAILED
-                # Domain codes from the renderer keep their meaning; renderer
-                # internal failures map to RENDERER_FAILED.
-                known = {ErrorCode.SCHEMA_INVALID, ErrorCode.GRAPH_DUPLICATE_ID,
-                         ErrorCode.GRAPH_INVALID_REFERENCE, ErrorCode.GRAPH_GROUP_CYCLE}
-                if code not in known:
-                    code = ErrorCode.RENDERER_FAILED
-                raise ApiException(
-                    code,
-                    f"renderer rejected the graph: {'; '.join(i['message'] for i in issues if i['severity'] == 'error') or stdout or 'unknown error'}",
+                    error if error in KNOWN_ERRORS else ErrorCode.RENDERER_FAILED,
+                    first.get("message", "renderer failed to process the graph"),
                 )
-            if not output_path.is_file():
-                raise ApiException(ErrorCode.RENDERER_FAILED, "renderer produced no output file")
-            size = output_path.stat().st_size
-            if size > self.output_limit_bytes:
-                raise ApiException(
-                    ErrorCode.RENDERER_FAILED,
-                    f"renderer output {size} bytes exceeds limit {self.output_limit_bytes}",
-                )
-            return RenderResult(output_path.read_bytes(), [i for i in issues if i["severity"] == "warning"])
+            extra = (issues, json.loads(self._read(report))) if command == "generate" else None
+            return self._read(result), extra
+
+    def render(self, graph: Dict[str, Any], context=None) -> RenderResult:
+        data, (issues, report) = self._invoke("generate", graph, context)
+        return RenderResult(data, [i for i in issues if i["severity"] == "warning"], report)
+
+    def resolve(self, graph: Dict[str, Any], context=None) -> dict:
+        data, _ = self._invoke("resolve", graph, context)
+        return json.loads(data)
+
+    def quality(self, graph: Dict[str, Any], drawio: bytes, context=None) -> dict:
+        data, _ = self._invoke("quality", graph, context, drawio)
+        return json.loads(data)
 
     def validate_drawio_file(self, path: Path) -> Tuple[bool, str]:
-        """Structural validation of a .drawio file through the renderer CLI."""
-        if not self.available():
-            raise ApiException(ErrorCode.RENDERER_UNAVAILABLE, f"renderer CLI not found at {self.cli_path}")
-        try:
-            proc = subprocess.run(
-                ["node", str(self.cli_path), "validate", "--input", str(path)],
-                shell=False,
-                capture_output=True,
-                timeout=self.timeout_seconds,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise ApiException(ErrorCode.RENDERER_FAILED, f"renderer validate timed out after {self.timeout_seconds}s") from exc
-        stderr = (proc.stderr or b"").decode("utf-8", "replace")[: self.output_limit_bytes]
-        issues = _parse_cli_output(stderr)
-        if proc.returncode != 0:
-            msg = "; ".join(i["message"] for i in issues) or "validation failed"
-            return False, msg
-        return True, ""
+        code, issues = self._run("validate", ["--input", str(path)])
+        return (False, "; ".join(i["message"] for i in issues) or "validation failed") if code else (True, "")

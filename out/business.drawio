@@ -1,50 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="ai-diagram-studio" compressed="false">
   <diagram id="page-1" name="示例：业务平台分区架构">
-    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="860" math="0" shadow="0">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="884" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="g_external" value="外部系统" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;" vertex="1" parent="1">
-          <mxGeometry x="228" y="56" width="160" height="156" as="geometry" />
+          <mxGeometry x="236" y="56" width="168" height="168" as="geometry" />
         </mxCell>
         <mxCell id="g_platform" value="业务平台" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;" vertex="1" parent="1">
-          <mxGeometry x="50" y="302" width="160" height="518" as="geometry" />
+          <mxGeometry x="50" y="314" width="168" height="530" as="geometry" />
         </mxCell>
         <mxCell id="g_terminal_zone" value="终端侧" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;" vertex="1" parent="1">
-          <mxGeometry x="40" y="40" width="140" height="172" as="geometry" />
+          <mxGeometry x="40" y="40" width="148" height="184" as="geometry" />
         </mxCell>
-        <mxCell id="n_partner" value="第三方业务系统" style="shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=service;" vertex="1" parent="g_external">
-          <mxGeometry x="20" y="48" width="120" height="64" as="geometry" />
+        <mxCell id="n_partner" value="第三方业务系统" style="shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=service;aiDeviceType=service;fontSize=12;fontColor=#24374D;whiteSpace=wrap;labelWidth=120;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=service;" vertex="1" parent="g_external">
+          <mxGeometry x="24" y="56" width="120" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="n_gateway" value="接口网关" style="shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=service;" vertex="1" parent="g_platform">
-          <mxGeometry x="20" y="48" width="120" height="64" as="geometry" />
+        <mxCell id="n_gateway" value="接口网关" style="shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=service;aiDeviceType=service;fontSize=12;fontColor=#24374D;whiteSpace=wrap;labelWidth=120;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=service;" vertex="1" parent="g_platform">
+          <mxGeometry x="24" y="56" width="120" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="n_content" value="内容服务" style="shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=service;" vertex="1" parent="g_platform">
-          <mxGeometry x="20" y="216" width="120" height="64" as="geometry" />
+        <mxCell id="n_content" value="内容服务" style="shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=service;aiDeviceType=service;fontSize=12;fontColor=#24374D;whiteSpace=wrap;labelWidth=120;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=service;" vertex="1" parent="g_platform">
+          <mxGeometry x="24" y="224" width="120" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="n_database" value="中心内容库" style="shape=mxgraph.networks.storage;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=database;" vertex="1" parent="g_platform">
-          <mxGeometry x="35" y="384" width="90" height="90" as="geometry" />
+        <mxCell id="n_database" value="中心内容库" style="shape=mxgraph.networks.storage;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=database;aiDeviceType=database;fontSize=12;fontColor=#24374D;whiteSpace=wrap;labelWidth=90;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=database;aiNetworkRole=endpoint;aiShapeId=networks.storage;" vertex="1" parent="g_platform">
+          <mxGeometry x="39" y="392" width="90" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="n_client" value="终端设备" style="shape=mxgraph.networks.terminal;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=client;" vertex="1" parent="g_terminal_zone">
-          <mxGeometry x="20" y="48" width="100" height="80" as="geometry" />
+        <mxCell id="n_client" value="终端设备" style="shape=mxgraph.networks.terminal;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=client;aiDeviceType=client;fontSize=12;fontColor=#24374D;whiteSpace=wrap;labelWidth=100;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=client;aiNetworkRole=endpoint;aiShapeId=networks.terminal;" vertex="1" parent="g_terminal_zone">
+          <mxGeometry x="24" y="56" width="100" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="e_partner_gateway" value="接口调用" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#6C8EBF;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;aiKind=logical;aiDirection=forward;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_partner" target="n_gateway">
+        <mxCell id="e_partner_gateway" value="接口调用" style="edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;entryX=1;entryY=0.5;rounded=0;html=1;dashed=1;strokeColor=#6C8EBF;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;aiKind=logical;aiDirection=forward;" edge="1" parent="1" source="n_partner" target="n_gateway">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="308" y="253" />
-              <mxPoint x="150" y="253" />
+              <mxPoint x="320" y="402" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e_gateway_content" value="内容请求" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A7E53;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;aiKind=dataflow;aiDirection=forward;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_gateway" target="n_content">
+        <mxCell id="e_gateway_content" value="内容请求" style="edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;html=1;strokeColor=#4A7E53;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;aiKind=dataflow;aiDirection=forward;" edge="1" parent="1" source="n_gateway" target="n_content">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_content_db" value="内容读写" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4A7E53;strokeWidth=1.2;startArrow=block;startFill=1;endArrow=block;endFill=1;aiKind=dataflow;aiDirection=bidirectional;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_content" target="n_database">
+        <mxCell id="e_content_db" value="内容读写" style="edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;html=1;strokeColor=#4A7E53;strokeWidth=1.2;startArrow=block;startFill=1;endArrow=block;endFill=1;aiKind=dataflow;aiDirection=bidirectional;" edge="1" parent="1" source="n_content" target="n_database">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_client_gateway" value="接入认证" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#6C8EBF;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;aiKind=logical;aiDirection=forward;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n_client" target="n_gateway">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e_client_gateway" value="接入认证" style="edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;entryX=0.5;entryY=0;rounded=0;html=1;dashed=1;strokeColor=#6C8EBF;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;aiKind=logical;aiDirection=forward;" edge="1" parent="1" source="n_client" target="n_gateway">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="134" y="136" />
+            </Array>
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

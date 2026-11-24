@@ -1,0 +1,680 @@
+{
+  "runDate": "2026-11-25",
+  "provider": "Ollama 0.40.11 OpenAI-compatible loopback",
+  "modelDigestPrefix": "0689d44085e0",
+  "timeoutSeconds": 25,
+  "repairRetries": 1,
+  "corpus": "fixtures/acceptance/v1_2_natural_language.json",
+  "model": "qwen3.5:2b",
+  "reasoningEffort": "none",
+  "cases": [
+    {
+      "id": "L01",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 2,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        0,
+        1
+      ],
+      "edges": [
+        1,
+        0,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 7263
+    },
+    {
+      "id": "L02",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 4,
+      "renderedNodes": 4,
+      "qualityWarnings": 0,
+      "nodes": [
+        4,
+        0,
+        0
+      ],
+      "edges": [
+        3,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 23208
+    },
+    {
+      "id": "L03",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        1,
+        2
+      ],
+      "edges": [
+        1,
+        1,
+        2
+      ],
+      "unrequestedPhysicalEdges": 1,
+      "durationMs": 16690
+    },
+    {
+      "id": "L04",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 15474
+    },
+    {
+      "id": "L05",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 4,
+      "renderedNodes": 4,
+      "qualityWarnings": 0,
+      "nodes": [
+        4,
+        0,
+        0
+      ],
+      "edges": [
+        3,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 18591
+    },
+    {
+      "id": "L06",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        0,
+        3,
+        3
+      ],
+      "edges": [
+        1,
+        1,
+        1
+      ],
+      "unrequestedPhysicalEdges": 1,
+      "durationMs": 28921
+    },
+    {
+      "id": "L07",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 4,
+      "nodes": [
+        0,
+        3,
+        3
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 18333
+    },
+    {
+      "id": "L08",
+      "schemaValid": false,
+      "semanticValid": false,
+      "rendered": false,
+      "error": "LLM_INVALID_OUTPUT",
+      "nodes": [
+        0,
+        0,
+        3
+      ],
+      "edges": [
+        0,
+        0,
+        2
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 39239
+    },
+    {
+      "id": "L09",
+      "schemaValid": false,
+      "semanticValid": false,
+      "rendered": false,
+      "error": "LLM_INVALID_OUTPUT",
+      "nodes": [
+        0,
+        0,
+        4
+      ],
+      "edges": [
+        0,
+        0,
+        2
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 32886
+    },
+    {
+      "id": "L10",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 4,
+      "renderedNodes": 4,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        0,
+        0
+      ],
+      "edges": [
+        1,
+        1,
+        0
+      ],
+      "unrequestedPhysicalEdges": 1,
+      "durationMs": 21005
+    },
+    {
+      "id": "L11",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 1,
+      "renderedNodes": 3,
+      "qualityWarnings": 2,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 16039
+    },
+    {
+      "id": "L12",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 3,
+      "qualityWarnings": 1,
+      "nodes": [
+        1,
+        2,
+        2
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 13281
+    },
+    {
+      "id": "L13",
+      "schemaValid": false,
+      "semanticValid": false,
+      "rendered": false,
+      "error": "LLM_INVALID_OUTPUT",
+      "nodes": [
+        0,
+        0,
+        3
+      ],
+      "edges": [
+        0,
+        0,
+        2
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 33297
+    },
+    {
+      "id": "L14",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        0,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 10848
+    },
+    {
+      "id": "L15",
+      "schemaValid": false,
+      "semanticValid": false,
+      "rendered": false,
+      "error": "LLM_INVALID_OUTPUT",
+      "nodes": [
+        0,
+        0,
+        2
+      ],
+      "edges": [
+        0,
+        0,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 36290
+    },
+    {
+      "id": "L16",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 16274
+    },
+    {
+      "id": "L17",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 3,
+      "qualityWarnings": 1,
+      "nodes": [
+        2,
+        1,
+        1
+      ],
+      "edges": [
+        1,
+        1,
+        0
+      ],
+      "unrequestedPhysicalEdges": 1,
+      "durationMs": 15838
+    },
+    {
+      "id": "L18",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 2,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        0,
+        0
+      ],
+      "edges": [
+        1,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 12749
+    },
+    {
+      "id": "L19",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 3,
+      "qualityWarnings": 1,
+      "nodes": [
+        2,
+        1,
+        1
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 15160
+    },
+    {
+      "id": "L20",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        2,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 13288
+    },
+    {
+      "id": "L21",
+      "schemaValid": false,
+      "semanticValid": false,
+      "rendered": false,
+      "error": "LLM_INVALID_OUTPUT",
+      "nodes": [
+        0,
+        0,
+        2
+      ],
+      "edges": [
+        0,
+        0,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 24147
+    },
+    {
+      "id": "L22",
+      "schemaValid": false,
+      "semanticValid": false,
+      "rendered": false,
+      "error": "LLM_INVALID_OUTPUT",
+      "nodes": [
+        0,
+        0,
+        3
+      ],
+      "edges": [
+        0,
+        0,
+        2
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 17855
+    },
+    {
+      "id": "L23",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        1,
+        1,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 14996
+    },
+    {
+      "id": "L24",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        0
+      ],
+      "edges": [
+        0,
+        3,
+        2
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 19161
+    },
+    {
+      "id": "L25",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        1,
+        1
+      ],
+      "edges": [
+        1,
+        1,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 24761
+    },
+    {
+      "id": "L26",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 2,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        0,
+        0
+      ],
+      "edges": [
+        0,
+        1,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 11776
+    },
+    {
+      "id": "L27",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 2,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        0,
+        0
+      ],
+      "edges": [
+        1,
+        0,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 11498
+    },
+    {
+      "id": "L28",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 2,
+      "renderedNodes": 2,
+      "qualityWarnings": 0,
+      "nodes": [
+        2,
+        0,
+        0
+      ],
+      "edges": [
+        0,
+        1,
+        0
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 24362
+    },
+    {
+      "id": "L29",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 0,
+      "nodes": [
+        3,
+        0,
+        1
+      ],
+      "edges": [
+        0,
+        2,
+        3
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 17241
+    },
+    {
+      "id": "L30",
+      "schemaValid": true,
+      "semanticValid": true,
+      "rendered": true,
+      "matchedShapes": 3,
+      "renderedNodes": 3,
+      "qualityWarnings": 9,
+      "nodes": [
+        2,
+        1,
+        1
+      ],
+      "edges": [
+        1,
+        1,
+        1
+      ],
+      "unrequestedPhysicalEdges": 0,
+      "durationMs": 15028
+    }
+  ],
+  "total": 30,
+  "schemaValid": 24,
+  "semanticValid": 24,
+  "rendered": 24,
+  "nodes": {
+    "precision": 0.8088235294117647,
+    "recall": 0.625,
+    "f1": 0.7051282051282052,
+    "correct": 55,
+    "extra": 13,
+    "missing": 33
+  },
+  "edges": {
+    "precision": 0.6818181818181818,
+    "recall": 0.5660377358490566,
+    "f1": 0.6185567010309279,
+    "correct": 30,
+    "extra": 14,
+    "missing": 23
+  },
+  "unrequestedPhysicalEdges": 4,
+  "matchedShapes": 65,
+  "renderedNodes": 70,
+  "patches": [
+    {
+      "id": "M01",
+      "pass": false,
+      "durationMs": 3275
+    },
+    {
+      "id": "M02",
+      "pass": true,
+      "durationMs": 5412
+    },
+    {
+      "id": "M03",
+      "pass": false,
+      "error": "SCHEMA_INVALID",
+      "durationMs": 9069
+    }
+  ],
+  "apiFollowup": {
+    "parseHttp": 200,
+    "proposedEdges": 2,
+    "needsManualReview": 1,
+    "patchPreviewHttp": 200,
+    "qualityPassed": true,
+    "patchApplyHttp": 200,
+    "createdVersion": 2
+  }
+}

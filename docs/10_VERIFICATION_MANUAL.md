@@ -1,5 +1,28 @@
 # 10｜验证手册
 
+## V1.2 验证命令
+
+在仓库根目录运行。
+
+```bash
+npm --prefix renderer test
+.venv/bin/python -m pytest backend/tests
+npm --prefix frontend run build
+.venv/bin/python scripts/validate_fixtures.py
+.venv/bin/python scripts/benchmark_v1_2.py
+```
+
+使用配置好的 OpenAI-compatible 服务运行固定的 30 条生成和 3 条 Patch 样本。模型评估独立记录 Schema 合法率、节点和连线的精确率与召回率、素材匹配和运行耗时。
+
+```bash
+.venv/bin/python scripts/verify_v1_2_model.py --output /tmp/v1_2_model_report.json
+```
+
+- 确定性验收覆盖 V1.2 的 T01–T20，其中 Desktop 编辑通过程序构造的回存文件测试。原生 Cisco 图形另在 Chrome 中使用官方只读 Viewer 及固定版本 stencil 测试渲染。
+- 在真实 Windows Desktop 打开 [V1.2 网络样例](../out/v1_2_network.drawio)，继续执行本手册的打开、拖动、改样式、改折点、保存、回导和再次打开流程。记录 Desktop 版本、SHA-256 与截图。
+- 使用 React 工作台验证文本草稿、下载、主题、素材检索、收藏、默认映射、SVG 预览与素材库导出。部署实机验收仍按 [部署文档](09_DEPLOYMENT.md)执行。
+
+
 分两部分：**自动化验证**（可在任何开发机重复）与 **Windows Desktop 人工验收**（必须在真实 Windows 环境，当前 BLOCKED）。
 
 ## 1. 自动化验证

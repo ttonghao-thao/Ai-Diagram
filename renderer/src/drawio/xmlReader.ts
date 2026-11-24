@@ -3,7 +3,7 @@
  * Phase 0 scope: uncompressed single-page mxfile (our own output format).
  * Compressed pages and multi-page files are explicitly rejected (Phase 2).
  */
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { ErrorCodes, RenderError } from '../errors.js';
 import { issue, type ValidationIssue } from '../errors.js';
 import type { Point } from '../types.js';
@@ -78,6 +78,10 @@ function parseGeometry(raw: unknown): ParsedGeometry | undefined {
 
 /** Parse uncompressed single-page draw.io XML. Throws RenderError on unsupported content. */
 export function parseDrawioXml(xml: string): ParsedDrawio {
+  if (Buffer.byteLength(xml) > 10 * 1024 * 1024 || /<!DOCTYPE|<!ENTITY/i.test(xml)) {
+    throw new RenderError(ErrorCodes.DRAWIO_UNSUPPORTED_CONTENT, 'XML size or entity declaration is not supported');
+  }
+  if (XMLValidator.validate(xml) !== true) throw new RenderError(ErrorCodes.DRAWIO_PARSE_FAILED, 'XML is not well-formed');
   let parsed: Record<string, unknown>;
   try {
     const parser = new XMLParser({
@@ -96,7 +100,7 @@ export function parseDrawioXml(xml: string): ParsedDrawio {
       `XML is not well-formed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
-  const mxfile = parsed.mxfile as Record<string, unknown> | undefined;
+  const mxfile = (parsed.mxfile ?? (parsed.mxGraphModel ? { diagram: [{ mxGraphModel: parsed.mxGraphModel }] } : undefined)) as Record<string, unknown> | undefined;
   if (!mxfile) {
     throw new RenderError(ErrorCodes.DRAWIO_PARSE_FAILED, 'root element must be <mxfile>');
   }
@@ -129,7 +133,17 @@ export function parseDrawioXml(xml: string): ParsedDrawio {
 
   const cells: ParsedCell[] = [];
   const cellById = new Map<string, ParsedCell>();
-  for (const rawCell of asArray(root.mxCell)) {
+  const wrapped = Object.entries(root).filter(([key]) => key !== 'mxCell')
+    .flatMap(([, items]) => asArray(items))
+    .flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const outer = item as Record<string, unknown>;
+      const inner = asArray(outer.mxCell)[0] as Record<string, unknown> | undefined;
+      return inner ? [{ ...inner, id: outer.id ?? inner.id, value: outer.label ?? inner.value }] : [];
+    });
+  const candidates = [...asArray(root.mxCell), ...wrapped];
+  if (candidates.length > 5000) throw new RenderError(ErrorCodes.DRAWIO_UNSUPPORTED_CONTENT, 'XML exceeds cell limit');
+  for (const rawCell of candidates) {
     const c = rawCell as Record<string, unknown>;
     const id = c.id;
     if (typeof id !== 'string' || id.length === 0) {
@@ -192,11 +206,14 @@ export function absoluteGeometry(cell: ParsedCell, cellById: Map<string, ParsedC
   }
   let x = cell.geometry.x;
   let y = cell.geometry.y;
-  const parent = cell.parent ? cellById.get(cell.parent) : undefined;
-  if (parent && parent.id !== '0' && parent.id !== '1') {
-    const pAbs = absoluteGeometry(parent, cellById);
-    x += pAbs.x;
-    y += pAbs.y;
+  const seen = new Set([cell.id]);
+  let parent = cell.parent ? cellById.get(cell.parent) : undefined;
+  while (parent && parent.id !== '0' && parent.id !== '1') {
+    if (seen.has(parent.id)) throw new RenderError(ErrorCodes.DRAWIO_PARSE_FAILED, 'XML cell parent cycle');
+    seen.add(parent.id);
+    x += parent.geometry?.x ?? 0;
+    y += parent.geometry?.y ?? 0;
+    parent = parent.parent ? cellById.get(parent.parent) : undefined;
   }
   return { x, y, width: cell.geometry.width ?? 0, height: cell.geometry.height ?? 0 };
 }

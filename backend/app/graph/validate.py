@@ -43,6 +43,24 @@ def collect_graph_issues(doc: GraphDocument) -> Tuple[List[ValidationIssue], Lis
     node_ids = {n.id for n in doc.nodes}
     group_ids = {g.id for g in doc.groups}
 
+    if doc.layout.centerNodeId and doc.layout.centerNodeId not in node_ids:
+        errors.append(issue(
+            GraphErrorCode.GRAPH_INVALID_REFERENCE,
+            "layout.centerNodeId must reference a node",
+            [doc.layout.centerNodeId],
+        ))
+    for constraint in doc.layout.constraints or ():
+        targets = ([constraint.source, constraint.target]
+                   if constraint.type == "relativePosition" else constraint.nodes)
+        valid = node_ids | group_ids if constraint.type == "preservePosition" else node_ids
+        missing = [target for target in targets if target not in valid]
+        if missing:
+            errors.append(issue(
+                GraphErrorCode.GRAPH_INVALID_REFERENCE,
+                f"layout constraint {constraint.type} references missing object(s)",
+                missing,
+            ))
+
     # 2. Edge endpoints must reference existing nodes (MVP: no group edges).
     for edge in doc.edges:
         missing = [pid for pid in (edge.source, edge.target) if pid not in node_ids]

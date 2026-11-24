@@ -1,0 +1,27 @@
+{
+  "id": "business",
+  "name": "业务架构",
+  "version": "1.0",
+  "iconLibrary": "business",
+  "baseTheme": "networks",
+  "devices": {},
+  "node": {
+    "fontSize": 12,
+    "fontColor": "#24374D",
+    "labelSpacing": 8
+  },
+  "edge": {
+    "routing": "orthogonal",
+    "labelPolicy": "explicit_only",
+    "arrowPolicy": "semantic",
+    "style": {}
+  },
+  "layout": {
+    "nodeSpacing": 52,
+    "layerSpacing": 86,
+    "groupPadding": 24
+  },
+  "group": {
+    "style": {}
+  }
+}

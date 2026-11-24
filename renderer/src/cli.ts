@@ -10,6 +10,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { GraphValidationError, RenderError, type ValidationIssue } from './errors.js';
 import { layoutGraph } from './layout/elkLayout.js';
+import { layoutLocal, type LocalLayoutOptions } from './layout/localLayout.js';
+import { checkQuality, type QualityContext } from './quality/check.js';
+import { resolveDrawing, type ResolveOptions } from './shapes/resolve.js';
 import { serializeDrawio } from './drawio/xmlWriter.js';
 import { parseDrawioXml, validateStructure } from './drawio/xmlReader.js';
 import { loadCustomIcons } from './shapes/iconRegistry.js';
@@ -48,29 +51,58 @@ function optionalArgValue(args: string[], flag: string): string | undefined {
   return args[idx + 1];
 }
 
-async function cmdGenerate(args: string[]): Promise<number> {
-  const input = argValue(args, '--input', 'generate');
-  const output = argValue(args, '--output', 'generate');
-  const iconsDir = optionalArgValue(args, '--icons-dir') ??
-    path.resolve(__dirname, '..', '..', 'assets', 'icons');
+interface RendererContext extends ResolveOptions, LocalLayoutOptions, QualityContext {
+  scope?: 'local' | 'global';
+}
+
+function writeOutput(file: string, body: string): void {
+  mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  writeFileSync(file, body, 'utf8');
+}
+
+function drawingInput(args: string[], command: string) {
+  const input = argValue(args, '--input', command);
+  const output = argValue(args, '--output', command);
+  const contextPath = optionalArgValue(args, '--context');
+  const context = contextPath ? readJsonFile(contextPath) as RendererContext : {};
+  const iconsDir = optionalArgValue(args, '--icons-dir') ?? path.resolve(__dirname, '..', '..', 'assets', 'icons');
   const customIcons = existsSync(iconsDir) ? loadCustomIcons(iconsDir) : new Map();
-  const started = Date.now();
-  const raw = readJsonFile(input);
-  const { doc, warnings } = validateGraph(raw);
-  const layout = await layoutGraph(doc);
-  const xml = serializeDrawio(doc, layout, { customIcons });
-  mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
-  writeFileSync(output, xml, 'utf8');
-  const vertexCount = layout.geometries.size;
-  const edges = doc.edges.length;
-  const ms = Date.now() - started;
-  for (const w of warnings) {
-    console.error(`WARNING ${w.code}: ${w.message}`);
+  const { doc, warnings } = validateGraph(readJsonFile(input));
+  return { doc, warnings, output, context, drawing: resolveDrawing(doc, { ...context, customIcons }) };
+}
+
+async function cmdGenerate(args: string[]): Promise<number> {
+  const started = performance.now();
+  const { doc, warnings, drawing, output, context } = drawingInput(args, 'generate');
+  const resolvedAt = performance.now();
+  const layout = await layoutGraph(doc, drawing);
+  const laidOutAt = performance.now();
+  const xml = serializeDrawio(doc, layout);
+  const serializedAt = performance.now();
+  const reportPath = optionalArgValue(args, '--report');
+  if (reportPath) {
+    const report = checkQuality(doc, drawing, parseDrawioXml(xml), context);
+    const metrics = { resolveMs: resolvedAt - started, layoutMs: laidOutAt - resolvedAt, xmlMs: serializedAt - laidOutAt };
+    writeOutput(reportPath, JSON.stringify({ ...report, metrics }));
+    if (!report.ok) throw new RenderError('TOPOLOGY_MISMATCH', 'generated drawing failed quality checks');
   }
-  const iconNote = customIcons.size ? `, ${customIcons.size} custom icon(s)` : '';
-  console.log(
-    `OK generated ${output} (diagram "${doc.name}"): ${vertexCount} cells, ${edges} edges, page ${layout.pageWidth}x${layout.pageHeight}, ${ms}ms${iconNote}`,
-  );
+  writeOutput(output, xml);
+  for (const w of [...warnings, ...drawing.warnings]) console.error(`WARNING ${w.code}: ${w.message}`);
+  console.log(`OK generated ${output}: ${layout.geometries.size} vertices, ${doc.edges.length} edges, page ${layout.pageWidth}x${layout.pageHeight}`);
+  return 0;
+}
+
+async function cmdResolve(args: string[]): Promise<number> {
+  const { doc, drawing, output, context } = drawingInput(args, 'resolve');
+  const layout = context.scope === 'local' ? layoutLocal(doc, drawing, context) : await layoutGraph(doc, drawing, context.unknownBoxes);
+  writeOutput(output, JSON.stringify({ ...drawing, pageWidth: layout.pageWidth, pageHeight: layout.pageHeight }));
+  return 0;
+}
+
+function cmdQuality(args: string[]): number {
+  const { doc, drawing, output, context } = drawingInput(args, 'quality');
+  const xml = readFileSync(argValue(args, '--drawio', 'quality'), 'utf8');
+  writeOutput(output, JSON.stringify(checkQuality(doc, drawing, parseDrawioXml(xml), context)));
   return 0;
 }
 
@@ -97,6 +129,8 @@ function printUsage(): void {
 
 Commands:
   generate --input <graph.json> --output <file.drawio> [--icons-dir <dir>]   Validate graph, run ELK layout, write draw.io XML
+  resolve   --input <graph.json> --output <resolved.json> [--context <context.json>]
+  quality   --input <graph.json> --drawio <file.drawio> --output <quality.json>
   validate  --input <file.drawio>                                            Structural validation of an uncompressed draw.io file
 
 Options:
@@ -111,6 +145,8 @@ async function main(argv: string[]): Promise<number> {
   if (command === 'generate') {
     return await cmdGenerate(rest);
   }
+  if (command === 'resolve') return await cmdResolve(rest);
+  if (command === 'quality') return cmdQuality(rest);
   if (command === 'validate') {
     return cmdValidate(rest);
   }

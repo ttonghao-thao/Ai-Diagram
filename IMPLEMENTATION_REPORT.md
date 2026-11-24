@@ -576,3 +576,60 @@ CLI 透传回归）；backend **108 passed**（+7：标签清洗、提示词规�
 
 - 分组容器仍是实底 swimlane，未改成参考图的虚线框（用户三点确认未涉及，列为可选项 docs/11 Q-11）
 - 层级按设备类型判定：多台防火墙会排到同一层（docs/11 Q-9）
+
+## 17. V1.2 专业图形生成升级（2026-11-25）
+
+### 实施范围
+
+- GraphDocument 1.1 增加主题、线路策略、六种布局约束及星形和分区策略。1.0 历史 Graph JSON 与 XML 继续原版本读取。
+- 官方 Shape Catalog 包含 2,289 项原生素材及变体，12 个 Cisco Classic 素材以 draw.io v24.7.17 stencil 实际尺寸校准。Chrome 使用官方 Viewer 渲染了 12 张真实素材预览。
+- TypeScript Renderer 统一生成与 Patch 的样式、图标尺寸、连线路由及检查结果。Python 应用最终语义变更后，对已存 XML 做定向修改，保留对应 cell 的人工样式与折点。
+- 主题、素材、SVG 导入、历史节点提取、可往返的 `mxlibrary`、个人收藏和设备默认映射进入 FastAPI 与 React 工作台。
+- 图纸质量报告与视觉状态随版本快照保存，压缩回导保留原始输入。新增显式全局和局部布局参数，保留版本冲突、未知对象及手工坐标保护。
+
+### 验证命令
+
+```bash
+npm --prefix renderer test
+.venv/bin/python -m pytest backend/tests
+npm --prefix frontend run build
+.venv/bin/python scripts/validate_fixtures.py
+.venv/bin/python scripts/benchmark_v1_2.py
+```
+
+Renderer 71/71、FastAPI 后端 115/115。TypeScript 和 Vite 构建、Graph JSON 样例检查以及四张生成图的 XML 结构检查通过。后端测试输出一条既有 Starlette TestClient 依赖弃用提示。
+
+Chrome 工作台实测通过文字录入、草稿、生成、质量报告、下载、中文检索、原生预览、收藏、设备默认映射、SVG 上传预览、素材导出和版本质量报告。V1.2 功能验收映射见 [验证手册](docs/10_VERIFICATION_MANUAL.md)。
+
+### 绘图性能
+
+Apple M4，本地 Node.js 22.22.1，使用同一树形拓扑生成器并加入一个节点。首次耗时含 CLI 启动与质量检查，局部插入为 Renderer `resolve` 独立耗时。计时项为毫秒。
+
+| 节点 / 边 | 首次总耗时 | 素材解析 | 布局和路由 | XML 序列化 | 局部插入 |
+|---|---:|---:|---:|---:|---:|
+| 10 / 9 | 139.2 | 1.8 | 60.4 | 0.2 | 71.4 |
+| 50 / 49 | 166.7 | 2.6 | 82.8 | 0.4 | 75.3 |
+| 200 / 199 | 244.1 | 3.8 | 140.3 | 0.7 | 94.6 |
+| 500 / 499 | 534.0 | 7.3 | 352.6 | 1.4 | 244.3 |
+| 1000 / 999 | 965.0 | 13.4 | 625.7 | 2.2 | 412.6 |
+
+五个样本的确定性质量检查均通过。1000 节点局部插入采用移除一个叶结点后插入，以保持契约上限。
+
+### 真实模型验收
+
+Ollama 0.40.11，`qwen3.5:2b`，模型摘要前缀 `0689d44085e0`。经本地 OpenAI-compatible 接口配置 `LLM_REASONING_EFFORT=none`、25 秒超时和一次修复重试。通过 [固定验收样本](fixtures/acceptance/v1_2_natural_language.json) 运行 30 条生成和 3 条修改。
+
+| 指标 | 本机实测 |
+|---|---:|
+| Schema 合法且可渲染 | 24 / 30 |
+| 节点精确率 / 召回率 | 80.9% / 62.5% |
+| 连线精确率 / 召回率 / F1 | 68.2% / 56.6% / 61.9% |
+| 模型草稿中未声明的物理连线 | 4 |
+| 已渲染节点的素材匹配 | 65 / 70 |
+| Patch 语义验收 | 1 / 3 |
+
+模型结果低于建议门槛。报表统计原始模型流水线结果，工作台对缺少原文依据的物理连线标记待核对。最终 FastAPI 流程单独复测，解析返回需核对的连线 1 条；真实模型按照指令新增服务器的 Patch 预览和应用均返回 HTTP 200，成功创建 v2。逐项结果、各用例耗时和失败原因见 [模型验收证据](docs/evidence/v1_2_local_qwen_2b.json)。
+
+### 决策与待验收
+
+采用工作台级个人素材库、候选正交路径和受保护对象优先的布局策略。组合图形进入导入及导出流程，放置为单一设备节点的验收后续跟踪。Windows draw.io Desktop 及目标服务器 Docker Compose 实机验收均未验证。实现和待跟踪口径见 [V1.2 实施计划](docs/12_V1_2_IMPLEMENTATION.md) 与 [遗留问题](docs/11_OPEN_ISSUES.md)。

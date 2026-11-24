@@ -104,31 +104,22 @@ class Database:
 
     # ---- diagrams ----------------------------------------------------------
 
-    def create_diagram(self, diagram_id: str, name: str, diagram_type: str, created_at: str) -> None:
-        with self.transaction() as conn:
-            conn.execute(
-                "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                (diagram_id, name, created_at, created_at),
-            )
-            conn.execute(
-                "INSERT INTO diagrams (id, project_id, name, diagram_type, current_version, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, 0, ?, ?)",
-                (diagram_id, diagram_id, name, diagram_type, created_at, created_at),
-            )
+    @staticmethod
+    def _create_diagram(conn: sqlite3.Connection, diagram_id: str, name: str, diagram_type: str, created_at: str) -> None:
+        conn.execute(
+            "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            (diagram_id, name, created_at, created_at),
+        )
+        conn.execute(
+            "INSERT INTO diagrams (id, project_id, name, diagram_type, current_version, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, 0, ?, ?)",
+            (diagram_id, diagram_id, name, diagram_type, created_at, created_at),
+        )
 
     def get_diagram(self, diagram_id: str) -> Optional[DiagramRow]:
         with self._lock:
             row = self._conn.execute("SELECT * FROM diagrams WHERE id = ?", (diagram_id,)).fetchone()
         return DiagramRow(**dict(row)) if row else None
-
-    def set_current_version(self, diagram_id: str, version: int, updated_at: str) -> bool:
-        """Optimistic current_version bump: fails when the stored version moved."""
-        with self.transaction() as conn:
-            cur = conn.execute(
-                "UPDATE diagrams SET current_version = ?, updated_at = ? WHERE id = ? AND current_version < ?",
-                (version, updated_at, diagram_id, version),
-            )
-            return cur.rowcount == 1
 
     def list_diagrams(self) -> list[DiagramRow]:
         with self._lock:
@@ -137,8 +128,19 @@ class Database:
 
     # ---- versions ----------------------------------------------------------
 
-    def insert_version(self, row: VersionRow) -> None:
+    def insert_version(self, row: VersionRow, *, new_diagram: Optional[tuple[str, str]] = None) -> None:
         with self.transaction() as conn:
+            if new_diagram:
+                self._create_diagram(conn, row.diagram_id, *new_diagram, row.created_at)
+            current = row.parent_version or 0
+            cur = conn.execute(
+                "UPDATE diagrams SET current_version = ?, updated_at = ? WHERE id = ? AND current_version = ?",
+                (row.version, row.created_at, row.diagram_id, current),
+            )
+            if cur.rowcount != 1:
+                from app.schemas.api import ApiException, ErrorCode
+
+                raise ApiException(ErrorCode.VERSION_CONFLICT, "diagram version changed during commit")
             conn.execute(
                 "INSERT INTO diagram_versions (diagram_id, version, parent_version, graph_path, drawio_path,"
                 " patch_path, manifest_path, sha256, origin, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",

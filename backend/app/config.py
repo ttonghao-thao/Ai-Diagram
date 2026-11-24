@@ -41,6 +41,8 @@ class Settings:
     llm_api_key: str = field(default_factory=lambda: _env_str("LLM_API_KEY", ""))
     llm_model: str = field(default_factory=lambda: _env_str("LLM_MODEL", ""))
     llm_timeout_seconds: int = field(default_factory=lambda: _env_int("LLM_TIMEOUT_SECONDS", 60))
+    llm_reasoning_effort: str = field(default_factory=lambda: _env_str("LLM_REASONING_EFFORT", ""))
+    llm_private_endpoint: bool = field(default_factory=lambda: _env_bool("LLM_PRIVATE_ENDPOINT", False))
     llm_max_retries: int = field(default_factory=lambda: _env_int("LLM_MAX_RETRIES", 2))
 
     renderer_cli: Path = field(

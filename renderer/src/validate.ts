@@ -4,6 +4,7 @@
  */
 import { ErrorCodes, GraphValidationError, issue, type ValidationIssue } from './errors.js';
 import type {
+  Appearance,
   EdgeDirection,
   EdgeKind,
   Geometry,
@@ -12,6 +13,7 @@ import type {
   GraphGroup,
   GraphNode,
   LayoutAlgorithm,
+  LayoutConstraint,
   LayoutDirection,
   MetadataValue,
   NodeKind,
@@ -26,13 +28,42 @@ const NODE_KINDS: readonly NodeKind[] = [
 ];
 const EDGE_KINDS: readonly EdgeKind[] = ['physical', 'logical', 'dataflow', 'control', 'dependency'];
 const EDGE_DIRECTIONS: readonly EdgeDirection[] = ['undirected', 'forward', 'bidirectional'];
-const LAYOUT_ALGORITHMS: readonly LayoutAlgorithm[] = ['layered', 'manual'];
+const LAYOUT_ALGORITHMS: readonly LayoutAlgorithm[] = ['layered', 'manual', 'star', 'grouped'];
 const LAYOUT_DIRECTIONS: readonly LayoutDirection[] = ['DOWN', 'RIGHT', 'UP', 'LEFT'];
 const NODE_ORIGINS = ['explicit', 'ai', 'imported'] as const;
 
 const MAX_NODES = 1000;
 const MAX_GROUPS = 200;
 const MAX_EDGES = 3000;
+const APPEARANCE_VALUES: Record<string, string[]> = {
+  edgeRouting: ['auto', 'straight', 'orthogonal'],
+  edgeLabelPolicy: ['hidden', 'explicit_only', 'all'],
+  edgeArrowPolicy: ['semantic', 'hidden'],
+};
+const CONSTRAINT_FIELDS: Record<string, string[]> = {
+  sameRank: ['nodes'], order: ['nodes', 'axis'], align: ['nodes', 'axis', 'mode'],
+  rank: ['nodes', 'rank'], preservePosition: ['nodes'],
+  relativePosition: ['source', 'target', 'position'],
+};
+
+function validId(value: unknown): value is string {
+  return typeof value === 'string' && ID_PATTERN.test(value);
+}
+
+function validConstraint(raw: unknown): raw is LayoutConstraint {
+  if (!isPlainObject(raw) || typeof raw.type !== 'string' || !Object.hasOwn(CONSTRAINT_FIELDS, raw.type)) return false;
+  const keys = CONSTRAINT_FIELDS[raw.type]!;
+  if (Object.keys(raw).length !== 1 + keys.length || !keys.every((key) => Object.hasOwn(raw, key))) return false;
+  if (raw.type === 'relativePosition') {
+    return validId(raw.source) && validId(raw.target) && ['above', 'below', 'left', 'right'].includes(String(raw.position));
+  }
+  const min = raw.type === 'rank' || raw.type === 'preservePosition' ? 1 : 2;
+  if (!Array.isArray(raw.nodes) || raw.nodes.length < min || raw.nodes.length > MAX_NODES ||
+      !raw.nodes.every(validId) || new Set(raw.nodes).size !== raw.nodes.length) return false;
+  if (keys.includes('axis') && raw.axis !== 'x' && raw.axis !== 'y') return false;
+  if (raw.type === 'align' && !['start', 'center', 'end'].includes(String(raw.mode))) return false;
+  return raw.type !== 'rank' || (typeof raw.rank === 'number' && Number.isInteger(raw.rank) && raw.rank >= 0 && raw.rank <= 999);
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -245,7 +276,7 @@ export class Validator {
       return;
     }
     const l = raw as Record<string, unknown>;
-    const allowed = ['algorithm', 'direction', 'preserveManualPositions'];
+    const allowed = ['algorithm', 'direction', 'preserveManualPositions', 'constraints', 'centerNodeId'];
     const unknownKeys = Object.keys(l).filter((k) => !allowed.includes(k));
     if (unknownKeys.length) {
       this.error(ErrorCodes.SCHEMA_INVALID, `layout has unknown fields: ${unknownKeys.join(', ')}`);
@@ -258,6 +289,13 @@ export class Validator {
     }
     if (typeof l.preserveManualPositions !== 'boolean') {
       this.error(ErrorCodes.SCHEMA_INVALID, 'layout.preserveManualPositions must be a boolean');
+    }
+    if (l.centerNodeId !== undefined && !validId(l.centerNodeId)) {
+      this.error(ErrorCodes.SCHEMA_INVALID, 'layout.centerNodeId must be a valid node id');
+    }
+    if (l.constraints !== undefined &&
+        (!Array.isArray(l.constraints) || l.constraints.length > 100 || !l.constraints.every(validConstraint))) {
+      this.error(ErrorCodes.SCHEMA_INVALID, 'layout.constraints contains an invalid constraint');
     }
   }
 
@@ -289,6 +327,17 @@ export class Validator {
 
     const nodeIds = new Set(doc.nodes.map((n) => n.id));
     const groupIds = new Set(doc.groups.map((g) => g.id));
+    const center = doc.layout.centerNodeId;
+    if (center && !nodeIds.has(center)) {
+      this.error(ErrorCodes.GRAPH_INVALID_REFERENCE, 'layout.centerNodeId must reference a node', [center]);
+    }
+    for (const constraint of doc.layout.constraints ?? []) {
+      const ids = constraint.type === 'relativePosition' ? [constraint.source, constraint.target] : constraint.nodes;
+      const missing = ids.filter((id) => !nodeIds.has(id) && !(constraint.type === 'preservePosition' && groupIds.has(id)));
+      if (missing.length) {
+        this.error(ErrorCodes.GRAPH_INVALID_REFERENCE, `layout constraint ${constraint.type} references missing objects`, missing);
+      }
+    }
 
     for (const e of doc.edges) {
       const missing: string[] = [];
@@ -371,8 +420,20 @@ export class Validator {
         this.error(ErrorCodes.SCHEMA_INVALID, `missing required field: ${key}`);
       }
     }
-    if (root.schemaVersion !== '1.0') {
-      this.error(ErrorCodes.SCHEMA_INVALID, `schemaVersion must be "1.0", got ${JSON.stringify(root.schemaVersion)}`);
+    const allowed = [...required, 'metadata', 'warnings', 'appearance'];
+    if (Object.keys(root).some((key) => !allowed.includes(key))) {
+      this.error(ErrorCodes.SCHEMA_INVALID, 'graph document has unknown fields');
+    }
+    if (root.schemaVersion !== '1.0' && root.schemaVersion !== '1.1') {
+      this.error(ErrorCodes.SCHEMA_INVALID, 'schemaVersion must be "1.0" or "1.1"');
+    }
+    if (root.appearance !== undefined && (!isPlainObject(root.appearance) ||
+        !Object.entries(root.appearance).every(([key, value]) => {
+          if (key === 'themeId') return typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value);
+          if (key === 'showGroups') return typeof value === 'boolean';
+          return Object.hasOwn(APPEARANCE_VALUES, key) && typeof value === 'string' && APPEARANCE_VALUES[key]!.includes(value);
+        }))) {
+      this.error(ErrorCodes.SCHEMA_INVALID, 'appearance contains unsupported fields or values');
     }
     if (typeof root.diagramId !== 'string' || !ID_PATTERN.test(root.diagramId)) {
       this.error(ErrorCodes.SCHEMA_INVALID, 'diagramId must match ^[A-Za-z][A-Za-z0-9_-]{0,63}$');
@@ -443,7 +504,7 @@ export class Validator {
     // Semantic checks need a best-effort document even if some structural
     // errors exist; only run it when the basic arrays are usable.
     const doc: GraphDocument = {
-      schemaVersion: '1.0',
+      schemaVersion: root.schemaVersion === '1.1' ? '1.1' : '1.0',
       diagramId: typeof root.diagramId === 'string' ? root.diagramId : '',
       name: typeof root.name === 'string' ? root.name : '',
       diagramType: root.diagramType === 'business_architecture' ? 'business_architecture' : 'network_topology',
@@ -461,6 +522,8 @@ export class Validator {
     if (isPlainObject(root.metadata) && Object.values(root.metadata).every(isMetadataValue)) {
       doc.metadata = root.metadata as Record<string, MetadataValue>;
     }
+    if (isPlainObject(root.appearance)) doc.appearance = root.appearance as Appearance;
+    if (Array.isArray(root.warnings)) doc.warnings = root.warnings as GraphDocument['warnings'];
     if (isPlainObject(root.layout)) {
       // Carry the caller's layout spec through (shape validated above).
       // Before this, direction/algorithm were silently replaced by DOWN/layered.
@@ -474,6 +537,8 @@ export class Validator {
       if (typeof l.preserveManualPositions === 'boolean') {
         doc.layout.preserveManualPositions = l.preserveManualPositions;
       }
+      if (validId(l.centerNodeId)) doc.layout.centerNodeId = l.centerNodeId;
+      if (Array.isArray(l.constraints) && l.constraints.every(validConstraint)) doc.layout.constraints = l.constraints;
     }
     this.checkSemantics(doc);
 

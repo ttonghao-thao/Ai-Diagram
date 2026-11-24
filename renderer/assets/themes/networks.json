@@ -1,0 +1,27 @@
+{
+  "id": "networks",
+  "name": "Networks 通用设备",
+  "version": "1.0",
+  "iconLibrary": "networks",
+  "baseTheme": "networks",
+  "devices": {},
+  "node": {
+    "fontSize": 12,
+    "fontColor": "#24374D",
+    "labelSpacing": 8
+  },
+  "edge": {
+    "routing": "auto",
+    "labelPolicy": "explicit_only",
+    "arrowPolicy": "semantic",
+    "style": {}
+  },
+  "layout": {
+    "nodeSpacing": 48,
+    "layerSpacing": 80,
+    "groupPadding": 24
+  },
+  "group": {
+    "style": {}
+  }
+}

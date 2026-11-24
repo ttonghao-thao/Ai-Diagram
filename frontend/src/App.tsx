@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError } from './api';
+import { api, ApiError, type Quality, type Theme } from './api';
+import { Materials, Themes } from './components/Materials';
+import { QualityPanel } from './components/QualityPanel';
 import { SAMPLE_ENTERPRISE_NETWORK } from './samples/enterpriseNetwork';
 
 /**
@@ -71,9 +73,11 @@ function ErrorBox({ err }: { err: ApiError | null }) {
 interface DiagramInfo { id: string; name: string; diagramType: string; currentVersion: number; updatedAt: string }
 
 export default function App() {
-  const [tab, setTab] = useState<'generate' | 'parse' | 'validate' | 'versions' | 'import' | 'patch'>('generate');
+  const [tab, setTab] = useState<'generate' | 'parse' | 'validate' | 'versions' | 'import' | 'patch' | 'materials' | 'themes'>('generate');
   const [health, setHealth] = useState<{ rendererAvailable: boolean; llm: { enabled: boolean; provider: string | null } } | null>(null);
 
+  const [themes, setThemes] = useState<Theme[]>([]);
+  useEffect(() => { api.themes().then(({ data }) => setThemes(data.themes)).catch(() => setThemes([])); }, []);
   const refreshHealth = useCallback(() => {
     api.health().then(({ data }) => setHealth(data as never)).catch(() => setHealth(null));
   }, []);
@@ -92,49 +96,85 @@ export default function App() {
       </header>
       <nav>
         {([['generate', '生成图纸'], ['parse', '文本解析'], ['validate', '校验 Graph'], ['versions', '图纸与版本'],
-          ['import', '导入回导'], ['patch', 'AI 修改']] as const).map(
+          ['import', '导入回导'], ['patch', 'AI 修改'], ['themes', '主题'], ['materials', '素材']] as const).map(
           ([key, label]) => (
-            <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+            <button key={key} aria-current={tab === key ? "page" : undefined} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
               {label}
             </button>
           ),
         )}
       </nav>
       <main>
-        {tab === 'generate' && <GenerateTab />}
+        {tab === 'generate' && <GenerateTab themes={themes} llmEnabled={!!health?.llm.enabled} />}
         {tab === 'parse' && <ParseTab />}
         {tab === 'validate' && <ValidateTab />}
         {tab === 'versions' && <VersionsTab />}
         {tab === 'import' && <ImportTab />}
-        {tab === 'patch' && <PatchTab />}
+        {tab === 'patch' && <PatchTab themes={themes} />}
+        {tab === 'themes' && <Themes themes={themes} />}
+        {tab === 'materials' && <Materials />}
       </main>
-      <footer>Phase 1 · 图形精修请在 Windows draw.io Desktop 中完成；本工作台不含画布。</footer>
+      <footer>使用 Windows draw.io Desktop 编辑下载的图纸，再上传新版本。</footer>
     </div>
   );
 }
 
-function GenerateTab() {
+const DRAWING_OPTIONS = [
+  ['algorithm', '布局方式', [['layered', '层级布局'], ['star', '中心辐射'], ['grouped', '分区布局']]],
+  ['direction', '布局方向', [['DOWN', '从上到下'], ['RIGHT', '从左到右'], ['UP', '从下到上'], ['LEFT', '从右到左']]],
+  ['edgeRouting', '连线方式', [['auto', '自动避障'], ['straight', '直线'], ['orthogonal', '正交线']]],
+  ['edgeLabelPolicy', '连线标签', [['hidden', '隐藏'], ['explicit_only', '仅显式标签'], ['all', '显示全部']]],
+  ['edgeArrowPolicy', '箭头', [['semantic', '按关系类型'], ['hidden', '全部隐藏']]],
+] as const;
+
+function GenerateTab({ themes, llmEnabled }: { themes: Theme[]; llmEnabled: boolean }) {
+  const [mode, setMode] = useState<'text' | 'json'>('text');
   const [text, setText] = useState(JSON.stringify(SAMPLE_NETWORK, null, 2));
+  const [description, setDescription] = useState('');
+  const [diagramType, setDiagramType] = useState('network_topology');
+  const [options, setOptions] = useState<Record<string, string>>({});
+  const [showGroups, setShowGroups] = useState(true);
+  const [draft, setDraft] = useState<Record<string, any> | null>(null);
   const [err, setErr] = useState<ApiError | null>(null);
   const [result, setResult] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
+  const usingText = mode === 'text' && llmEnabled;
 
-  const submit = async () => {
-    setErr(null);
-    setResult(null);
-    let graph: unknown;
+  const chooseSample = (sample: unknown) => {
+    setMode('json'); setText(JSON.stringify(sample, null, 2)); setDraft(null);
+  };
+  const changeOption = (key: string, value: string) => {
+    setOptions((current) => ({ ...current, [key]: value })); setDraft(null);
+  };
+
+  const submit = async (previewOnly: boolean) => {
+    setErr(null); setResult(null); setBusy(true);
     try {
-      graph = JSON.parse(text);
-    } catch (e) {
-      setErr(new ApiError('LOCAL_JSON', `JSON 解析失败：${String(e)}`));
-      return;
-    }
-    setBusy(true);
-    try {
+      let graph;
+      if (usingText) {
+        let parsed = draft;
+        if (!parsed) {
+          const { algorithm, direction, ...style } = options;
+          const appearance = Object.fromEntries(Object.entries(style).filter(([, value]) => value));
+          const { data } = await api.parseText(description, diagramType, {
+            ...(algorithm ? { algorithm } : {}), ...(direction ? { direction } : {}),
+            appearance: { ...appearance, ...(!showGroups ? { showGroups: false } : {}) },
+          });
+          parsed = data;
+          setDraft(parsed);
+        }
+        if (!parsed || previewOnly || !parsed.schemaValid || (parsed.documentWarnings ?? parsed.graph.warnings ?? [])
+          .some((warning: Issue) => warning.requiresConfirmation)) return;
+        graph = parsed.graph;
+      } else {
+        try { graph = JSON.parse(text); } catch (error) {
+          throw new ApiError('LOCAL_JSON', `JSON 解析失败：${String(error)}`);
+        }
+      }
       const { data } = await api.createDiagram(graph);
       setResult(data);
-    } catch (e) {
-      setErr(e as ApiError);
+    } catch (error) {
+      setErr(error as ApiError);
     } finally {
       setBusy(false);
     }
@@ -142,29 +182,63 @@ function GenerateTab() {
 
   return (
     <section>
-      <h2>从 Graph JSON 创建图纸（初始版本）</h2>
-      <p className="hint">
-        加载示例：
-        <button onClick={() => setText(JSON.stringify(SAMPLE_NETWORK, null, 2))}>网络拓扑</button>
-        <button onClick={() => setText(JSON.stringify(SAMPLE_BUSINESS, null, 2))}>业务架构</button>
-        <button onClick={() => setText(JSON.stringify(SAMPLE_ENTERPRISE_NETWORK, null, 2))}>组网图模板</button>
-      </p>
-      <textarea rows={14} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
-      <button className="primary" disabled={busy} onClick={submit}>
-        {busy ? '生成中…' : '生成 .drawio 并创建 v1'}
-      </button>
+      <h2>生成图纸</h2>
+      <div className="toolbar">
+        <button disabled={!llmEnabled} aria-pressed={usingText} onClick={() => setMode('text')}>自然语言</button>
+        <button aria-pressed={!usingText} onClick={() => setMode('json')}>Graph JSON</button>
+        <button onClick={() => chooseSample(SAMPLE_NETWORK)}>网络示例</button>
+        <button onClick={() => chooseSample(SAMPLE_BUSINESS)}>业务示例</button>
+        <button onClick={() => chooseSample(SAMPLE_ENTERPRISE_NETWORK)}>组网图模板</button>
+      </div>
+      {usingText ? (
+        <>
+          <label htmlFor="diagram-description">绘图需求</label>
+          <textarea id="diagram-description" rows={7} value={description} maxLength={10000}
+            placeholder="例如，公网连接防火墙，防火墙连接核心交换机。"
+            onChange={(e) => { setDescription(e.target.value); setDraft(null); }} />
+          <div className="option-grid">
+            <label>图纸类型 <select value={diagramType} onChange={(e) => { setDiagramType(e.target.value); setDraft(null); }}>
+              <option value="network_topology">网络拓扑</option><option value="business_architecture">业务架构</option>
+            </select></label>
+            <label>绘图主题 <select value={options.themeId ?? ''} onChange={(e) => changeOption('themeId', e.target.value)}>
+              <option value="">按需求选择</option>{themes.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+            </select></label>
+            {DRAWING_OPTIONS.map(([key, label, values]) => (
+              <label key={key}>{label} <select value={options[key] ?? ''} onChange={(e) => changeOption(key, e.target.value)}>
+                <option value="">按需求选择</option>{values.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select></label>
+            ))}
+            <label className="check"><input type="checkbox" checked={showGroups}
+              onChange={(e) => { setShowGroups(e.target.checked); setDraft(null); }} /> 显示分组</label>
+          </div>
+        </>
+      ) : (
+        <textarea aria-label="Graph JSON" rows={14} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
+      )}
+      <div className="toolbar">
+        {usingText && <button disabled={busy || !description.trim()} onClick={() => submit(true)}>解析草稿</button>}
+        <button className="primary" disabled={busy || usingText && !description.trim()} onClick={() => submit(false)}>
+          {busy ? '处理中…' : '生成 .drawio'}
+        </button>
+      </div>
       <ErrorBox err={err} />
+      {draft && usingText && (
+        <details open={!draft.schemaValid || !result}>
+          <summary>解析结果</summary>
+          <IssueList issues={[...(draft.semanticErrors ?? []), ...(draft.semanticWarnings ?? []),
+            ...(draft.documentWarnings ?? draft.graph.warnings ?? [])]} />
+          <button onClick={() => chooseSample(draft.graph)}>编辑 Graph JSON</button>
+          <pre>{JSON.stringify(draft.graph, null, 2)}</pre>
+        </details>
+      )}
       {result && (
-        <div className="ok">
-          已创建 <b>{result.diagram.id}</b>（{result.diagram.name}）当前版本 v{result.diagram.currentVersion}
-          ，SHA-256 <code>{String(result.version.sha256).slice(0, 16)}…</code>
-          {'　'}
-          <a href={api.exportUrl(result.diagram.id)} download>
-            下载 .drawio
-          </a>
+        <div className="ok" role="status">
+          已生成 <b>{result.diagram.name}</b> v{result.diagram.currentVersion}
+          {'　'}<a href={api.exportUrl(result.diagram.id, result.diagram.currentVersion)} download>下载 .drawio</a>
           <IssueList issues={result.warnings ?? []} />
         </div>
       )}
+      <QualityPanel quality={result?.quality} />
     </section>
   );
 }
@@ -361,6 +435,7 @@ function ImportTab() {
         <div>
           <DiffSummary diff={preview.diff} />
           <IssueList issues={preview.warnings ?? []} />
+          <QualityPanel quality={preview.quality} />
           {preview.requiresConfirmation ? (
             <p className="hint">包含删除/重接线等高风险变更，请核对差异后再提交。</p>
           ) : null}
@@ -373,11 +448,13 @@ function ImportTab() {
   );
 }
 
-function PatchTab() {
+function PatchTab({ themes }: { themes: Theme[] }) {
   const setErrSafe = useCallback((e: ApiError) => setErr(e), []);
   const { diagrams, refresh } = useDiagrams(setErrSafe);
   const [selected, setSelected] = useState<string | null>(null);
   const [instruction, setInstruction] = useState('新增两台服务器并连接核心交换机');
+  const [themeId, setThemeId] = useState('');
+  const [patchMode, setPatchMode] = useState<'instruction' | 'theme'>('instruction');
   const [preview, setPreview] = useState<Record<string, any> | null>(null);
   const [err, setErr] = useState<ApiError | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -389,7 +466,12 @@ function PatchTab() {
     if (!selected || !current) return;
     setBusy(true);
     try {
-      const { data } = await api.patchPreview(selected, { instruction });
+      const body = patchMode === 'theme' ? {
+        patch: { baseVersion: current.currentVersion, operations: [
+          { op: 'update_theme', id: selected, changes: { themeId } },
+        ] },
+      } : { instruction };
+      const { data } = await api.patchPreview(selected, body);
       setPreview(data);
     } catch (e) {
       setErr(e as ApiError);
@@ -422,8 +504,19 @@ function PatchTab() {
       <p>
         <DiagramPicker diagrams={diagrams} value={selected} onChange={(id) => { setSelected(id); setPreview(null); setMsg(null); }} />
       </p>
-      <textarea rows={2} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
-      <button className="primary" disabled={busy || !selected} onClick={runPreview}>
+      <div className="toolbar">
+        <button aria-pressed={patchMode === 'instruction'} onClick={() => { setPatchMode('instruction'); setPreview(null); }}>自然语言指令</button>
+        <button aria-pressed={patchMode === 'theme'} onClick={() => { setPatchMode('theme'); setPreview(null); }}>切换整图主题</button>
+      </div>
+      {patchMode === 'theme' ? (
+        <label>新主题 <select value={themeId} onChange={(e) => { setThemeId(e.target.value); setPreview(null); }}>
+          <option value="">选择主题</option>{themes.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+        </select></label>
+      ) : (
+        <textarea aria-label="图纸修改指令" rows={2} value={instruction}
+          onChange={(e) => { setInstruction(e.target.value); setPreview(null); }} />
+      )}
+      <button className="primary" disabled={busy || !selected || (patchMode === 'theme' ? !themeId : !instruction.trim())} onClick={runPreview}>
         {busy ? '分析中…' : '预览 Patch'}
       </button>
       <ErrorBox err={err} />
@@ -436,9 +529,10 @@ function PatchTab() {
           </div>
           <div>受影响对象：{preview.impactedIds?.join(', ')}</div>
           <IssueList issues={preview.warnings ?? []} />
+          <QualityPanel quality={preview.quality} />
           <details>
             <summary>布局计划与差异</summary>
-            <pre>{JSON.stringify({ layoutPlan: preview.layoutPlan, diff: preview.diff?.summary }, null, 2)}</pre>
+            <pre>{JSON.stringify({ patch: preview.patch, layoutPlan: preview.layoutPlan, diff: preview.diff }, null, 2)}</pre>
           </details>
           <button className="primary" disabled={busy} onClick={apply}>确认应用</button>
         </div>
@@ -454,6 +548,10 @@ function VersionsTab() {
   const [err, setErr] = useState<ApiError | null>(null);
   const [busyVersion, setBusyVersion] = useState(false);
   const [layoutMsg, setLayoutMsg] = useState<string | null>(null);
+  const [quality, setQuality] = useState<Quality | null>(null);
+  const [strategy, setStrategy] = useState('layered');
+  const [direction, setDirection] = useState('');
+  const [nodeIds, setNodeIds] = useState('');
 
   const refresh = useCallback(() => {
     api.listDiagrams().then(({ data }) => {
@@ -462,23 +560,24 @@ function VersionsTab() {
   }, []);
   useEffect(refresh, [refresh]);
 
-  const openVersions = useCallback((id: string) => {
+  const openVersions = useCallback(async (id: string) => {
     setSelected(id);
-    setLayoutMsg(null);
-    api.listVersions(id).then(({ data }) => setVersions(data as never)).catch((e) => setErr(e as ApiError));
+    try { const { data } = await api.listVersions(id); setVersions(data); }
+    catch (error) { setErr(error as ApiError); }
   }, []);
-  useEffect(() => {
-    if (selected) openVersions(selected);
-  }, [selected, openVersions]);
 
   const relayout = async () => {
     if (!selected || !versions) return;
-    if (!window.confirm("重新布局会以 ELK 重排全图（手工位置将丢失，历史版本可回滚），继续？")) return;
     setBusyVersion(true);
     setLayoutMsg(null);
     try {
-      const { data } = await api.layoutDiagram(selected, versions.currentVersion);
-      setLayoutMsg(`已生成新版本 v${(data as any).version.version}（ELK 重排）`);
+      const nodes = nodeIds.trim().split(/[ ,，]+/).filter(Boolean);
+      const { data } = await api.layoutDiagram(selected, versions.currentVersion, {
+        algorithm: strategy, ...(direction ? { direction } : {}), scope: nodes.length ? 'local' : 'global',
+        nodeIds: nodes, preserveStyles: true, preserveLockedPositions: true,
+      });
+      setLayoutMsg(`已生成新版本 v${data.version.version}`);
+      setQuality(data.quality);
       await openVersions(selected);
     } catch (e) {
       setLayoutMsg(`重排失败：${(e as ApiError).code} ${(e as ApiError).message}`);
@@ -519,19 +618,27 @@ function VersionsTab() {
               <td>{d.name}</td>
               <td>{d.diagramType}</td>
               <td>v{d.currentVersion}</td>
-              <td><button onClick={() => openVersions(d.id)}>查看版本</button></td>
+              <td><button onClick={() => {
+                setLayoutMsg(null); setQuality(null); setNodeIds(''); void openVersions(d.id);
+              }}>查看版本</button></td>
             </tr>
           ))}
         </tbody>
       </table>
       {selected && versions && (
         <div>
-          <h3>
-            {selected} 的版本列表（当前 v{versions.currentVersion}）
-            <button className="primary" disabled={busyVersion} onClick={relayout}>
-              {busyVersion ? '重排中…' : '基于当前版本重新布局（新版本）'}
-            </button>
-          </h3>
+          <h3>{selected} 的版本列表（当前 v{versions.currentVersion}）</h3>
+          <div className="toolbar">
+            <label>布局 <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
+              {DRAWING_OPTIONS[0][2].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select></label>
+            <label>方向 <select value={direction} onChange={(e) => setDirection(e.target.value)}>
+              <option value="">沿用当前方向</option>{DRAWING_OPTIONS[1][2].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select></label>
+            <input aria-label="局部布局节点 ID" placeholder="节点 ID（留空为全局）" value={nodeIds} onChange={(e) => setNodeIds(e.target.value)} />
+            <button className="primary" disabled={busyVersion} onClick={relayout}>{busyVersion ? '重排中…' : '重新布局'}</button>
+          </div>
+          <QualityPanel quality={quality} />
           {layoutMsg && <p className="hint">{layoutMsg}</p>}
           <table>
             <thead>
@@ -547,7 +654,8 @@ function VersionsTab() {
                   <td>{v.createdAt}</td>
                   <td>
                     <a href={api.exportUrl(selected, v.version)} download={`v${v.version}.drawio`}>.drawio</a>
-                    {'　'}
+                    {'　'}<button onClick={() => api.quality(selected, v.version)
+                      .then(({ data }) => setQuality(data.quality)).catch(setErr)}>质量报告</button>{'　'}
                     {v.version !== versions.currentVersion && (
                       <button onClick={() => rollback(v.version)}>回滚到此版本</button>
                     )}

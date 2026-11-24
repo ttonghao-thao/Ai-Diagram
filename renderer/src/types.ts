@@ -24,9 +24,26 @@ export type EdgeDirection = 'undirected' | 'forward' | 'bidirectional';
 
 export type NodeOrigin = 'explicit' | 'ai' | 'imported';
 
-export type LayoutAlgorithm = 'layered' | 'manual';
+export type LayoutAlgorithm = 'layered' | 'manual' | 'star' | 'grouped';
 
 export type LayoutDirection = 'DOWN' | 'RIGHT' | 'UP' | 'LEFT';
+
+export type Axis = 'x' | 'y';
+export type LayoutConstraint =
+  | { type: 'sameRank'; nodes: string[] }
+  | { type: 'order'; axis: Axis; nodes: string[] }
+  | { type: 'align'; axis: Axis; mode: 'start' | 'center' | 'end'; nodes: string[] }
+  | { type: 'relativePosition'; source: string; target: string; position: 'above' | 'below' | 'left' | 'right' }
+  | { type: 'rank'; rank: number; nodes: string[] }
+  | { type: 'preservePosition'; nodes: string[] };
+
+export interface Appearance {
+  themeId?: string;
+  edgeRouting?: 'auto' | 'straight' | 'orthogonal';
+  edgeLabelPolicy?: 'hidden' | 'explicit_only' | 'all';
+  edgeArrowPolicy?: 'semantic' | 'hidden';
+  showGroups?: boolean;
+}
 
 /** Style entries as allowed by graph.schema.json ($defs/style). */
 export type StyleValue = string | number | boolean;
@@ -85,6 +102,8 @@ export interface LayoutSpec {
   algorithm: LayoutAlgorithm;
   direction: LayoutDirection;
   preserveManualPositions: boolean;
+  constraints?: LayoutConstraint[];
+  centerNodeId?: string;
 }
 
 export interface GraphWarning {
@@ -95,7 +114,7 @@ export interface GraphWarning {
 }
 
 export interface GraphDocument {
-  schemaVersion: '1.0';
+  schemaVersion: '1.0' | '1.1';
   diagramId: string;
   name: string;
   diagramType: DiagramType;
@@ -103,6 +122,7 @@ export interface GraphDocument {
   groups: GraphGroup[];
   edges: GraphEdge[];
   layout: LayoutSpec;
+  appearance?: Appearance;
   metadata?: Record<string, MetadataValue>;
   warnings?: GraphWarning[];
 }

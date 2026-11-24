@@ -1,8 +1,9 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "diagramId": "enterprise_network",
   "name": "企业组网图（模板）",
   "diagramType": "network_topology",
+  "appearance": {"themeId": "cisco", "edgeRouting": "auto", "edgeLabelPolicy": "explicit_only"},
   "groups": [
     {"id": "dmz_zone", "label": "DMZ 区"},
     {"id": "server_zone", "label": "核心业务区"},
@@ -37,6 +38,6 @@
     {"id": "l11", "source": "core_sw", "target": "app1", "kind": "physical", "direction": "undirected"},
     {"id": "l12", "source": "app1", "target": "db1", "kind": "dataflow", "direction": "bidirectional", "label": "读写"}
   ],
-  "layout": {"algorithm": "layered", "direction": "DOWN", "preserveManualPositions": true},
+  "layout": {"algorithm": "grouped", "direction": "DOWN", "preserveManualPositions": true},
   "metadata": {"source": "template", "note": "典型企业组网骨架：出口→防火墙→核心→接入/无线/服务器分区；VPN 与 DMZ 旁挂。可按需增删。"}
 }

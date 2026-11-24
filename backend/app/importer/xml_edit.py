@@ -1,220 +1,36 @@
-"""Directed XML editing for GraphPatch application (docs/03 section 6).
-
-Only cells affected by the patch are touched; unknown/unmapped cells and all
-other user styling survive byte-for-byte. The semantic graph holds absolute
-coordinates, while mxGeometry inside groups is parent-relative, so every
-geometry write converts abs -> rel via the parent chain read from the XML.
-
-The graphId->cellId mapping comes from the version manifest (import commit
-stores it; renderer-built files use the stable n_/g_/e_ prefixes).
-"""
+"""Edit known cells in the original draw.io XML using resolved renderer output."""
 from __future__ import annotations
 
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
+from app.importer.model_map import parse_style
 from app.importer.xml_parser import guard_no_dtd
 from app.schemas.api import ApiException, ErrorCode
 from app.schemas.graph import GraphDocument
 
-# Node icon templates mirroring renderer/src/shapes/iconRegistry.ts (verified
-# mxgraph.networks ids). Documented duplication, kept in sync manually.
-NODE_STYLES = {
-    "switch": "shape=mxgraph.networks.switch;",
-    "router": "shape=mxgraph.networks.router;",
-    "firewall": "shape=mxgraph.networks.firewall;",
-    "server": "shape=mxgraph.networks.server;",
-    "vm": "shape=mxgraph.networks.virtual_server;",
-    "database": "shape=mxgraph.networks.storage;",
-    "cloud": "shape=mxgraph.networks.cloud;",
-    "client": "shape=mxgraph.networks.terminal;",
-    "service": "shape=process;whiteSpace=wrap;fillColor=#D5E8D4;strokeColor=#82B366;fontColor=#2A4023;",
-    "generic": "whiteSpace=wrap;html=1;rounded=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontColor=#4A3B00;",
-}
-
-# Extended deviceType aliases mirroring renderer ALIAS_REGISTRY (kept in
-# sync by tests/test_phase_p1.py::test_stencil_ids_match_between_ts_and_python).
-ALIAS_STYLES = {
-    "access_point": "shape=mxgraph.networks.wireless_hub;",
-    "load_balancer": "shape=mxgraph.networks.load_balancer;",
-    "modem": "shape=mxgraph.networks.modem;",
-    "proxy": "shape=mxgraph.networks.proxy_server;",
-    "vpn_gateway": "shape=mxgraph.networks.secured;",
-    "hub": "shape=mxgraph.networks.hub;",
-    "mainframe": "shape=mxgraph.networks.mainframe;",
-    "rack": "shape=mxgraph.networks.rack;",
-}
-
-# Cisco theme (default for network_topology): solid-blue legacy Cisco stencils.
-# Mirrors CISCO_ICON_REGISTRY / CISCO_ALIAS_REGISTRY in
-# renderer/src/shapes/iconRegistry.ts; ids verified in drawio v24.7.17
-# stencils/cisco/<section>.xml. Kept in sync by tests/test_phase_p1.py.
-CISCO_BLUE = "#036897"
-
-
-def _cisco(shape_id: str, *, fill: str = CISCO_BLUE, stroke: str = "#FFFFFF",
-           label_inside: bool = False) -> str:
-    style = (
-        f"sketch=0;outlineConnect=0;html=1;fillColor={fill};strokeColor={stroke};"
-        f"pointerEvents=1;shape=mxgraph.cisco.{shape_id};"
-    )
-    if label_inside:
-        return style + "verticalAlign=middle;align=center;fontColor=#000000;"
-    return style + "verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
-
-
-# Cisco styles already carry their label placement (cloud: label inside).
-CISCO_NODE_STYLES = {
-    "cloud": _cisco("storage.cloud", fill="#FFFFFF", stroke="#000000", label_inside=True),
-    "router": _cisco("routers.router"),
-    "firewall": _cisco("security.ios_firewall"),
-    "switch": _cisco("misc.route_switch_processor"),
-    "server": _cisco("servers.server_with_router"),
-    "vm": _cisco("servers.software_based_server"),
-    "database": _cisco("storage.relational_database"),
-    "client": _cisco("computers_and_peripherals.pc"),
-}
-CISCO_ALIAS_STYLES = {
-    "access_point": _cisco("misc.access_point"),
-    "load_balancer": _cisco("directors.localdirector"),
-    "vpn_gateway": _cisco("hubs_and_gateways.vpn_gateway"),
-    "hub": _cisco("hubs_and_gateways.cisco_hub"),
-}
-
-EDGE_BASE_STYLE = "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;"
-
-GROUP_STYLE = (
-    "swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;"
-    "strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;"
-)
-
 MAX_XML_BYTES = 10 * 1024 * 1024
+ROUTE_KEYS = {
+    "exitX", "exitY", "exitDx", "exitDy", "exitPerimeter", "entryX", "entryY", "entryDx",
+    "entryDy", "entryPerimeter", "edgeStyle", "loopStyle", "orthogonalLoop", "jettySize",
+}
+EDGE_SEMANTIC_KEYS = {"aiKind", "aiDirection", "dashed", "dashPattern", "startArrow",
+                      "endArrow", "startFill", "endFill", "strokeColor", "strokeWidth"}
+ICON_KEYS = {"shape", "image", "imageAspect", "aspect", "prIcon", "resIcon", "aiShapeId",
+             "fillColor", "strokeColor", "strokeWidth", "points", "sketch", "outlineConnect",
+             "pointerEvents", "verticalLabelPosition", "verticalAlign", "labelWidth", "align",
+             "spacingTop", "gradientColor", "gradientDirection", "backgroundOutline", "perimeter"}
 
 
-def _fmt(n: Any) -> str:
-    n = float(n)
-    return str(int(n)) if n.is_integer() else str(round(n, 2))
-
-
-def _doc_theme(graph: GraphDocument) -> str:
-    """network_topology -> cisco by default; metadata.iconTheme overrides."""
-    override = (graph.metadata or {}).get("iconTheme")
-    if override in ("cisco", "networks"):
-        return override
-    return "cisco" if graph.diagramType == "network_topology" else "networks"
-
-
-def _node_theme(node: Any, doc_theme: str) -> str:
-    override = (node.style or {}).get("iconTheme")
-    return override if override in ("cisco", "networks") else doc_theme
-
-
-def _node_style(node: Any, doc_theme: str = "networks") -> str:
-    kind = node.kind if isinstance(node.kind, str) else "generic"
-    device_type = (node.properties or {}).get("deviceType")
-    device_type = device_type.lower() if isinstance(device_type, str) else ""
-    theme = _node_theme(node, doc_theme)
-    cisco_style = False
-    if theme == "cisco":
-        if kind == "generic" and device_type in CISCO_ALIAS_STYLES:
-            base = CISCO_ALIAS_STYLES[device_type]
-            cisco_style = True
-        elif kind == "generic" and device_type in ALIAS_STYLES:
-            base = ALIAS_STYLES[device_type]  # alias without a Cisco icon
-        elif kind in CISCO_NODE_STYLES:
-            base = CISCO_NODE_STYLES[kind]
-            cisco_style = True
-        else:
-            base = NODE_STYLES.get(kind, NODE_STYLES["generic"])
-    elif kind == "generic" and device_type in ALIAS_STYLES:
-        base = ALIAS_STYLES[device_type]  # patch-added alias nodes keep their stencil
-    else:
-        base = NODE_STYLES.get(kind, NODE_STYLES["generic"])
-    parts = [base]
-    if not cisco_style:
-        parts.append("verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;")
-    parts.append(f"aiKind={kind};")
-    if device_type:
-        parts.append(f"aiDeviceType={device_type};")
-    return "".join(parts)
-
-
-def _anchor_fragment(src_geo: Optional[Dict[str, Any]], tgt_geo: Optional[Dict[str, Any]]) -> str:
-    """Fixed directional connection anchors derived from endpoint geometries."""
-    if not src_geo or not tgt_geo or src_geo.get("x") is None or tgt_geo.get("x") is None:
-        return ""
-    dx = (tgt_geo["x"] + tgt_geo["width"] / 2) - (src_geo["x"] + src_geo["width"] / 2)
-    dy = (tgt_geo["y"] + tgt_geo["height"] / 2) - (src_geo["y"] + src_geo["height"] / 2)
-    if dx == 0 and dy == 0:
-        return ""
-    if abs(dx) > abs(dy):
-        if dx > 0:
-            return "exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
-        return "exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;"
-    if dy > 0:
-        return "exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
-    return "exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;"
-
-
-def _arrow_fragment(kind: str, direction: str) -> str:
-    if kind == "physical":
-        return "startArrow=none;startFill=0;endArrow=none;endFill=0;"
-    if direction == "bidirectional":
-        return "startArrow=block;startFill=1;endArrow=block;endFill=1;"
-    if direction == "forward":
-        return "startArrow=none;startFill=0;endArrow=block;endFill=1;"
-    return "startArrow=none;startFill=0;endArrow=none;endFill=0;"
-
-
-def _edge_style(kind: str, direction: str, src_geo: Optional[Dict[str, Any]],
-                tgt_geo: Optional[Dict[str, Any]], theme: str = "networks") -> str:
-    if theme == "cisco":
-        # Thin straight black line as in draw.io's Cisco templates: no
-        # orthogonal routing, no fixed anchors, no waypoints.
-        parts = ["sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;"]
-        if kind in ("logical", "control", "dependency"):
-            parts.append("dashed=1;")
-        parts.append(_arrow_fragment(kind, direction))
-        parts.append(f"aiKind={kind};aiDirection={direction};")
-        return "".join(parts)
-    parts = [EDGE_BASE_STYLE]
-    if kind == "physical":
-        parts.append("strokeColor=#536D83;strokeWidth=1.5;startArrow=none;startFill=0;endArrow=none;endFill=0;")
-    elif kind == "logical":
-        parts.append("dashed=1;strokeColor=#6C8EBF;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;")
-    elif kind == "dataflow":
-        parts.append("strokeColor=#4A7E53;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;")
-    elif kind == "control":
-        parts.append("dashed=1;strokeColor=#B85450;strokeWidth=1.2;startArrow=none;startFill=0;endArrow=block;endFill=1;")
-    else:
-        parts.append("dashed=1;dashPattern=1 3;strokeColor=#8A8A8A;strokeWidth=1;startArrow=none;startFill=0;endArrow=block;endFill=1;")
-    if direction == "bidirectional" and kind != "physical":
-        parts.append("startArrow=block;startFill=1;")
-    # Semantic markers keep edge types lossless across Desktop round-trips.
-    parts.append(f"aiKind={kind};aiDirection={direction};")
-    parts.append(_anchor_fragment(src_geo, tgt_geo))
-    return "".join(parts)
-
-
-_EDGE_ANCHOR_KEYS = ("exitX", "exitY", "exitDx", "exitDy", "entryX", "entryY", "entryDx", "entryDy")
-
-
-def _refresh_edge_anchors(inner: ET.Element, src_geo: Optional[Dict[str, Any]],
-                          tgt_geo: Optional[Dict[str, Any]]) -> None:
-    """Replace the anchor keys in an existing edge style, keeping user keys."""
-    style = inner.get("style") or ""
-    kept = [p for p in style.split(";") if p and not p.startswith(_EDGE_ANCHOR_KEYS)]
-    fragment = _anchor_fragment(src_geo, tgt_geo)
-    if fragment:
-        kept.append(fragment.rstrip(";"))
-    inner.set("style", ";".join(kept) + ";")
+def _fmt(value: Any) -> str:
+    return format(float(value), ".8f").rstrip("0").rstrip(".") or "0"
 
 
 @dataclass
 class XmlEditContext:
     tree: ET.ElementTree
+    model: ET.Element
     root_el: ET.Element  # <root>
     cells: Dict[str, ET.Element]  # cell id -> top-level element (mxCell / object / UserObject)
 
@@ -226,7 +42,7 @@ def _inner(el: ET.Element) -> ET.Element:
 def load_xml_context(xml_bytes: bytes, max_cells: int = 5000) -> XmlEditContext:
     guard_no_dtd(xml_bytes, MAX_XML_BYTES)
     try:
-        tree = ET.ElementTree(ET.fromstring(xml_bytes))
+        tree = ET.ElementTree(ET.fromstring(xml_bytes, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True, insert_pis=True))))
     except ET.ParseError as exc:
         raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, f"stored XML is not well-formed: {exc}") from exc
     root_el_tree = tree.getroot()
@@ -253,18 +69,18 @@ def load_xml_context(xml_bytes: bytes, max_cells: int = 5000) -> XmlEditContext:
     root_el = model.find("root")
     cells: Dict[str, ET.Element] = {}
     count = 0
-    for el in list(root_el):
-        cid = el.get("id")
-        if cid is None and el.tag in ("object", "UserObject"):
-            inner = el.find("mxCell")
-            cid = inner.get("id") if inner is not None else None
+    for el in root_el:
+        inner = _inner(el)
+        cid = (inner.get("id") if inner is not None else None) or el.get("id")
         if cid is None:
             continue
+        if cid in cells:
+            raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "stored XML has duplicate cell IDs", [cid])
         cells[cid] = el
         count += 1
         if count > max_cells:
             raise ApiException(ErrorCode.DRAWIO_UNSUPPORTED_CONTENT, "stored XML exceeds the cell limit")
-    return XmlEditContext(tree=tree, root_el=root_el, cells=cells)
+    return XmlEditContext(tree=tree, model=model, root_el=root_el, cells=cells)
 
 
 def _abs_geometry(ctx: XmlEditContext, cell_id: str) -> Optional[Dict[str, float]]:
@@ -277,7 +93,11 @@ def _abs_geometry(ctx: XmlEditContext, cell_id: str) -> Optional[Dict[str, float
         return None
     x, y = float(geo.get("x")), float(geo.get("y"))
     parent_id = inner.get("parent") if inner is not None else None
+    seen = {cell_id}
     while parent_id and parent_id not in ("0", "1"):
+        if parent_id in seen:
+            raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "XML cell parent cycle")
+        seen.add(parent_id)
         pel = ctx.cells.get(parent_id)
         if pel is None:
             break
@@ -305,13 +125,6 @@ def _ensure_geometry(inner: ET.Element) -> ET.Element:
         geo = ET.SubElement(inner, "mxGeometry")
         geo.set("as", "geometry")
     return geo
-
-
-def _remove_element(ctx: XmlEditContext, el: ET.Element) -> None:
-    for other in list(ctx.cells):
-        if ctx.cells[other] is el:
-            del ctx.cells[other]
-    ctx.root_el.remove(el)
 
 
 class CellMapper:
@@ -345,233 +158,157 @@ class CellMapper:
         self.map[graph_id] = cell_id
 
 
-def _node_geo(node: Any) -> Optional[Dict[str, Any]]:
-    geo = node.geometry
-    if geo is None:
-        return None
-    return {"x": geo.x, "y": geo.y, "width": geo.width, "height": geo.height}
+def _style_overlay(previous: str, resolved: str, keys: set[str]) -> str:
+    current = parse_style(previous)
+    generated = parse_style(resolved)
+    for key in keys:
+        current.pop(key, None)
+    current.update((key, value) for key, value in generated.items() if key in keys)
+    return "".join(f"{key}={value};" if value else f"{key};" for key, value in current.items())
 
 
-def _group_abs_from_xml(ctx: XmlEditContext, mapper: CellMapper, group_id: Optional[str]) -> Dict[str, float]:
-    if not group_id:
-        return {"x": 0.0, "y": 0.0}
-    abs_geo = _abs_geometry(ctx, mapper.group_cell(group_id))
-    if abs_geo and abs_geo["x"] is not None:
-        return {"x": abs_geo["x"], "y": abs_geo["y"]}
-    return {"x": 0.0, "y": 0.0}
-
-
-def apply_patch_to_xml(
-    xml_bytes: bytes,
-    old_graph: GraphDocument,
-    new_graph: GraphDocument,
-    applied_ops: List[Dict[str, Any]],
-    mapping: Optional[Dict[str, str]] = None,
-    max_cells: int = 5000,
-) -> bytes:
-    """Apply a validated patch to stored XML; returns the new XML bytes."""
-    ctx = load_xml_context(xml_bytes, max_cells=max_cells)
-    mapper = CellMapper(mapping, old_graph)
-    doc_theme = _doc_theme(new_graph)  # styles follow the renderer's theme rules
-    new_nodes = {n.id: n for n in new_graph.nodes}
-    new_groups = {g.id: g for g in new_graph.groups}
-    new_edges = {e.id: e for e in new_graph.edges}
-
-    for op in applied_ops:
-        op_name, op_id = op["op"], op["id"]
-        value = op.get("value") or {}
-        changes = op.get("changes") or {}
-
-        if op_name == "add_node":
-            node = new_nodes[op_id]
-            cell_id = mapper.node_cell(op_id)
-            if cell_id in ctx.cells:
-                raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED,
-                                   f"add_node: cell '{cell_id}' already exists in the XML", [op_id])
-            parent_cell = mapper.group_cell(node.groupId) if node.groupId else "1"
-            inner = ET.Element("mxCell", {
-                "id": cell_id,
-                "value": node.label,
-                "style": _node_style(node, doc_theme),
-                "vertex": "1",
-                "parent": parent_cell,
+def _set_points(ctx: XmlEditContext, inner: ET.Element, points: list) -> None:
+    geometry = _ensure_geometry(inner)
+    geometry.set("relative", "1")
+    for item in geometry.findall("Array"):
+        if item.get("as") == "points":
+            geometry.remove(item)
+    if points:
+        origin = _abs_geometry(ctx, inner.get("parent", "1")) or {"x": 0, "y": 0}
+        array = ET.SubElement(geometry, "Array", {"as": "points"})
+        for point in points:
+            ET.SubElement(array, "mxPoint", {
+                "x": _fmt(point["x"] - origin["x"]), "y": _fmt(point["y"] - origin["y"]),
             })
-            geo = ET.SubElement(inner, "mxGeometry", {"as": "geometry"})
-            parent_abs = _group_abs_from_xml(ctx, mapper, node.groupId)
-            geo.set("x", _fmt(node.geometry.x - parent_abs["x"]))
-            geo.set("y", _fmt(node.geometry.y - parent_abs["y"]))
-            geo.set("width", _fmt(node.geometry.width))
-            geo.set("height", _fmt(node.geometry.height))
-            ctx.root_el.append(inner)
-            mapper.register(op_id, cell_id)
 
-        elif op_name == "update_node":
-            cell_id = mapper.node_cell(op_id)
-            el = ctx.cells.get(cell_id)
-            if el is None:
-                raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                   f"update_node: XML cell '{cell_id}' not found (stale mapping?)", [op_id])
-            node = new_nodes[op_id]
-            if "label" in changes:
-                _set_label(el, node.label)
-            if "style" in changes:
-                inner = _inner(el)
-                existing = dict(kv.split("=", 1) for kv in (inner.get("style") or "").split(";") if "=" in kv)
-                for k, v in (changes.get("style") or {}).items():
-                    existing[str(k)] = str(v)
-                inner.set("style", ";".join(f"{k}={v}" for k, v in existing.items()) + ";")
-            if "geometry" in changes and node.geometry:
-                inner = _inner(el)
-                geo = _ensure_geometry(inner)
-                parent_abs = _group_abs_from_xml(ctx, mapper, node.groupId)
-                geo.set("x", _fmt(node.geometry.x - parent_abs["x"]))
-                geo.set("y", _fmt(node.geometry.y - parent_abs["y"]))
-                geo.set("width", _fmt(node.geometry.width))
-                geo.set("height", _fmt(node.geometry.height))
-            if "groupId" in changes:
-                inner = _inner(el)
-                new_parent = mapper.group_cell(node.groupId) if node.groupId else "1"
-                inner.set("parent", new_parent)
-                geo = _ensure_geometry(inner)
-                parent_abs = _group_abs_from_xml(ctx, mapper, node.groupId)
-                geo.set("x", _fmt(node.geometry.x - parent_abs["x"]))
-                geo.set("y", _fmt(node.geometry.y - parent_abs["y"]))
 
-        elif op_name == "remove_node":
-            cell_id = mapper.node_cell(op_id)
-            el = ctx.cells.get(cell_id)
+def apply_resolved_xml(
+    ctx: XmlEditContext, old: GraphDocument, new: GraphDocument, resolved: dict,
+    mapper: CellMapper, operations: list, manual: dict, *, restyle=False,
+) -> tuple[bytes, set[str]]:
+    """Apply the final net change, preserving untouched and unrecognized cells."""
+    prior = {obj.id: obj for obj in [*old.nodes, *old.groups, *old.edges]}
+    remaining = {obj.id for obj in [*new.nodes, *new.groups, *new.edges]}
+    known = set(mapper.map.values())
+    unknown = set(ctx.cells) - known - {"0", "1"}
+    deletion = {mapper.map[id_] for id_ in set(prior) - remaining if id_ in mapper.map}
+    for id_ in unknown:
+        cell = _inner(ctx.cells[id_])
+        if cell is not None and deletion.intersection(cell.get(key) for key in ("parent", "source", "target")):
+            raise ApiException(ErrorCode.UNKNOWN_CELL_LOSS, "不能删除仍被未映射元素引用的图形", [id_])
+    for id_ in deletion:
+        el = ctx.cells.pop(id_, None)
+        if el is not None:
+            ctx.root_el.remove(el)
+    changes = {}
+    for op in operations:
+        changes.setdefault(op["id"], {}).update(op.get("changes") or {})
+
+    def element(id_: str, kind: str, label: str) -> tuple[ET.Element, bool]:
+        mapped = getattr(mapper, f"{kind}_cell")(id_)
+        created = id_ not in prior
+        el = ctx.cells.get(mapped)
+        if created:
             if el is not None:
-                _remove_element(ctx, el)
-            for edge in old_graph.edges:
-                if edge.source == op_id or edge.target == op_id:
-                    eel = ctx.cells.get(mapper.edge_cell(edge.id))
-                    if eel is not None:
-                        _remove_element(ctx, eel)
+                raise ApiException(ErrorCode.GRAPH_DUPLICATE_ID, "新对象与原有 XML ID 冲突", [id_])
+            el = ET.SubElement(ctx.root_el, "mxCell", {"id": mapped, "parent": "1"})
+            el.set("edge" if kind == "edge" else "vertex", "1")
+            _set_label(el, label)
+            ctx.cells[mapped] = el
+            mapper.register(id_, mapped)
+        if el is None:
+            raise ApiException(ErrorCode.TOPOLOGY_MISMATCH, "原图缺少 GraphDocument 对应的 cell", [id_])
+        return el, created
 
-        elif op_name == "add_edge":
-            edge = new_edges[op_id]
-            src = new_nodes[edge.source]
-            tgt = new_nodes[edge.target]
-            cell_id = mapper.edge_cell(op_id)
-            inner = ET.Element("mxCell", {
-                "id": cell_id,
-                "value": edge.label or "",
-                "style": _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt), doc_theme),
-                "edge": "1",
-                "parent": "1",
-                "source": mapper.node_cell(edge.source),
-                "target": mapper.node_cell(edge.target),
-            })
-            geo = ET.SubElement(inner, "mxGeometry", {"relative": "1", "as": "geometry"})
-            if edge.waypoints and doc_theme != "cisco":  # cisco edges are straight lines
-                arr = ET.SubElement(geo, "Array", {"as": "points"})
-                for p in edge.waypoints:
-                    ET.SubElement(arr, "mxPoint", {"x": _fmt(p["x"]), "y": _fmt(p["y"])})
-            ctx.root_el.append(inner)
-            mapper.register(op_id, cell_id)
+    moved = set()
+    geometry_delta = set()
+    group_ids = {group.id: group for group in new.groups}
 
-        elif op_name == "update_edge":
-            cell_id = mapper.edge_cell(op_id)
-            el = ctx.cells.get(cell_id)
-            if el is None:
-                raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                   f"update_edge: XML cell '{cell_id}' not found", [op_id])
-            inner = _inner(el)
-            edge = new_edges[op_id]
-            if "label" in changes:
-                _set_label(el, edge.label or "")
-            if "source" in changes:
-                inner.set("source", mapper.node_cell(edge.source))
-            if "target" in changes:
-                inner.set("target", mapper.node_cell(edge.target))
-            if "kind" in changes or "direction" in changes:
-                # Semantic type changed: rebuild the visual style from the
-                # template (this edge's arrow/dash/color tweaks are reset) so
-                # the XML stays consistent with the graph (docs/02 section 8).
-                src = new_nodes[edge.source]
-                tgt = new_nodes[edge.target]
-                inner.set("style", _edge_style(edge.kind, edge.direction, _node_geo(src), _node_geo(tgt), doc_theme))
-            elif "source" in changes or "target" in changes:
-                # Endpoints moved to different nodes: refresh only the anchor
-                # keys, keeping the rest of the user's style untouched.
-                if doc_theme != "cisco":  # straight-line edges carry no anchor keys
-                    _refresh_edge_anchors(inner, _node_geo(new_nodes[edge.source]), _node_geo(new_nodes[edge.target]))
-            if "waypoints" in changes:
-                geo = _ensure_geometry(inner)
-                for arr in list(geo.findall("Array")):
-                    if arr.get("as") == "points":
-                        geo.remove(arr)
-                if edge.waypoints:
-                    arr = ET.SubElement(geo, "Array", {"as": "points"})
-                    for p in edge.waypoints:
-                        ET.SubElement(arr, "mxPoint", {"x": _fmt(p["x"]), "y": _fmt(p["y"])})
+    def update_vertex(obj, kind: str, parent_id: Optional[str]) -> None:
+        old_obj = prior.get(obj.id)
+        entry = resolved[kind + "s"][obj.id]
+        el, created = element(obj.id, kind, obj.label)
+        inner = _inner(el)
+        original_parent = inner.get("parent")
+        if created or (getattr(old_obj, "groupId" if kind == "node" else "parentId", None) != parent_id):
+            inner.set("parent", mapper.group_cell(parent_id) if parent_id else "1")
+        if not created and old_obj.label != obj.label:
+            _set_label(el, obj.label)
+        change = changes.get(obj.id, {})
+        locked = manual.get(kind + "s", {}).get(obj.id, {}).get("manualStyleLocked")
+        if created or restyle and not locked:
+            inner.set("style", entry["style"])
+        elif "style" in change or kind == "node" and "properties" in change:
+            requested = set(change.get("style") or {})
+            if requested & {"shapeId", "shape", "icon", "iconTheme"} or "deviceType" in (change.get("properties") or {}):
+                requested |= ICON_KEYS
+            if "properties" in change:
+                requested |= {"aiDeviceType", "aiNetworkRole"}
+            inner.set("style", _style_overlay(inner.get("style", ""), entry["style"], requested))
+        elif kind == "node" and old_obj.label != obj.label and not locked and "verticalLabelPosition=bottom" in inner.get("style", ""):
+            inner.set("style", _style_overlay(inner.get("style", ""), entry["style"], {"labelWidth"}))
+        placement = obj.geometry
+        if placement and (created or placement != old_obj.geometry or original_parent != inner.get("parent") or parent_id in moved):
+            geo = _ensure_geometry(inner)
+            parent_abs = _abs_geometry(ctx, inner.get("parent", "1")) or {"x": 0, "y": 0}
+            for key in ("x", "y", "width", "height"):
+                value = getattr(placement, key) - (parent_abs.get(key, 0) if key in ('x', 'y') else 0)
+                geo.set(key, _fmt(value))
+            geometry_delta.add(obj.id)
+            if created or not old_obj.geometry or (placement.x, placement.y) != (old_obj.geometry.x, old_obj.geometry.y):
+                moved.add(obj.id)
 
-        elif op_name == "remove_edge":
-            el = ctx.cells.get(mapper.edge_cell(op_id))
-            if el is not None:
-                _remove_element(ctx, el)
+    visited = set()
+    def group_first(group) -> None:
+        if group.id in visited:
+            return
+        if group.parentId:
+            group_first(group_ids[group.parentId])
+        update_vertex(group, "group", group.parentId)
+        visited.add(group.id)
+    for group in new.groups:
+        group_first(group)
+    for node in new.nodes:
+        update_vertex(node, "node", node.groupId)
 
-        elif op_name == "add_group":
-            group = new_groups[op_id]
-            cell_id = mapper.group_cell(op_id)
-            inner = ET.Element("mxCell", {
-                "id": cell_id,
-                "value": group.label,
-                "style": GROUP_STYLE,
-                "vertex": "1",
-                "parent": mapper.group_cell(group.parentId) if group.parentId else "1",
-            })
-            geo = ET.SubElement(inner, "mxGeometry", {"as": "geometry"})
-            if group.geometry:
-                geo.set("x", _fmt(group.geometry.x))
-                geo.set("y", _fmt(group.geometry.y))
-                geo.set("width", _fmt(group.geometry.width))
-                geo.set("height", _fmt(group.geometry.height))
-            else:
-                geo.set("x", "40")
-                geo.set("y", "40")
-                geo.set("width", "300")
-                geo.set("height", "160")
-            ctx.root_el.append(inner)
-            mapper.register(op_id, cell_id)
-
-        elif op_name == "update_group":
-            el = ctx.cells.get(mapper.group_cell(op_id))
-            if el is None:
-                raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE,
-                                   f"update_group: XML cell for '{op_id}' not found", [op_id])
-            group = new_groups[op_id]
-            if "label" in changes:
-                _set_label(el, group.label)
-            if "geometry" in changes and group.geometry:
-                geo = _ensure_geometry(_inner(el))
-                geo.set("x", _fmt(group.geometry.x))
-                geo.set("y", _fmt(group.geometry.y))
-                geo.set("width", _fmt(group.geometry.width))
-                geo.set("height", _fmt(group.geometry.height))
-
-        elif op_name == "remove_group":
-            cascade = bool(op.get("cascade"))
-            if cascade:
-                member_ids = [n.id for n in old_graph.nodes if n.groupId == op_id]
-                child_groups = [g.id for g in old_graph.groups if g.parentId == op_id]
-                for nid in member_ids:
-                    el = ctx.cells.get(mapper.node_cell(nid))
-                    if el is not None:
-                        _remove_element(ctx, el)
-                for edge in old_graph.edges:
-                    if edge.source in member_ids or edge.target in member_ids:
-                        eel = ctx.cells.get(mapper.edge_cell(edge.id))
-                        if eel is not None:
-                            _remove_element(ctx, eel)
-                for gid in child_groups:
-                    gel = ctx.cells.get(mapper.group_cell(gid))
-                    if gel is not None:
-                        _remove_element(ctx, gel)
-            el = ctx.cells.get(mapper.group_cell(op_id))
-            if el is not None:
-                _remove_element(ctx, el)
-
-    ET.indent(ctx.tree, space="  ")
-    out = ET.tostring(ctx.tree.getroot(), encoding="unicode")
-    return ('<?xml version="1.0" encoding="UTF-8"?>\n' + out + "\n").encode("utf-8")
+    moved_cells = {mapper.map[id_] for id_ in moved}
+    for edge in new.edges:
+        ent = resolved["edges"][edge.id]
+        old_edge = prior.get(edge.id)
+        el, created = element(edge.id, "edge", ent["value"])
+        inner = _inner(el)
+        change = changes.get(edge.id, {})
+        reconnected = created or (edge.source, edge.target) != (old_edge.source, old_edge.target)
+        recalculate = reconnected or "waypoints" in change or bool({edge.source, edge.target} & geometry_delta)
+        mark = manual.get("edges", {}).get(edge.id, {})
+        locked = mark.get("manualStyleLocked")
+        if reconnected:
+            inner.set("source", mapper.node_cell(edge.source))
+            inner.set("target", mapper.node_cell(edge.target))
+        if restyle or not created and old_edge.label != edge.label:
+            _set_label(el, ent["value"])
+        if created or restyle and not locked:
+            inner.set("style", ent["style"])
+        else:
+            keys = set(change.get("style") or {})
+            if recalculate and not locked:
+                keys.update(ROUTE_KEYS - set(edge.style))
+            if {"kind", "direction"} & change.keys():
+                keys.update(EDGE_SEMANTIC_KEYS)
+                if locked:
+                    keys.difference_update({"strokeColor", "strokeWidth"})
+            if keys:
+                inner.set("style", _style_overlay(inner.get("style", ""), ent["style"], keys))
+        parent_moved = inner.get("parent") in moved_cells
+        if mark.get("pathSource") == "manual" and "waypoints" not in change:
+            if parent_moved and edge.waypoints:
+                _set_points(ctx, inner, [point.model_dump() for point in edge.waypoints])
+        elif created or "waypoints" in change or (restyle or recalculate) and not locked:
+            _set_points(ctx, inner, ent.get("waypoints") or [])
+    if geometry_delta:
+        for key in ("pageWidth", "pageHeight"):
+            previous = float(ctx.model.get(key) or 0)
+            if resolved[key] > previous:
+                ctx.model.set(key, str(resolved[key]))
+    out = ET.tostring(ctx.tree.getroot(), encoding="utf-8", xml_declaration=True)
+    return out + b"\n", unknown

@@ -74,7 +74,9 @@ def decompress_diagram_content(content: str, max_decompressed_bytes: int = 6 * 1
     except Exception as exc:
         raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, f"compressed diagram content could not be decoded: {exc}") from exc
     try:
-        return unquote(xml_bytes.decode("utf-8"))
+        xml = unquote(xml_bytes.decode("utf-8"), errors="strict")
+        guard_no_dtd(xml.encode("utf-8"), max_decompressed_bytes)
+        return xml
     except UnicodeDecodeError as exc:
         raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "decompressed diagram content is not valid UTF-8") from exc
 
@@ -168,10 +170,10 @@ def guard_no_dtd(data: bytes, max_bytes: int) -> None:
             ErrorCode.DRAWIO_UPLOAD_TOO_LARGE,
             f"file is {len(data)} bytes, exceeds the {max_bytes}-byte limit",
         )
-    if _DOCTYPE_PATTERN.search(data):
+    if b"\x00" in data or _DOCTYPE_PATTERN.search(data):
         raise ApiException(
             ErrorCode.DRAWIO_PARSE_FAILED,
-            "XML declares a DOCTYPE/ENTITY; external entities are not accepted",
+            "XML encoding or DOCTYPE/ENTITY declaration is unsupported",
         )
 
 
@@ -219,14 +221,12 @@ def normalize_to_uncompressed(data: bytes, max_cells: int = 5000, max_bytes: int
     if model.tag != "mxGraphModel":
         raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "decompressed content must be an mxGraphModel")
 
-    out = ET.Element("mxfile", {k: v for k, v in root.attrib.items() if k != "compressed"})
-    out.set("compressed", "false")
-    page = ET.SubElement(out, "diagram", {
-        "id": diagram.get("id") or "page-1",
-        "name": diagram.get("name") or "Page-1",
-    })
-    page.append(model)
-    ET.indent(ET.ElementTree(out), space="  ")
+    root.set("compressed", "false")
+    if "compressed" in diagram.attrib:
+        diagram.set("compressed", "false")
+    diagram.text = None
+    diagram.append(model)
+    out = root
     serialized = ET.tostring(out, encoding="unicode")
     return (f'<?xml version="1.0" encoding="UTF-8"?>\n{serialized}\n').encode("utf-8"), True
 
@@ -262,7 +262,7 @@ def parse_drawio_bytes(data: bytes, max_cells: int = 5000, max_bytes: int = 10 *
     diagram = diagrams[0]
 
     compressed = False
-    model_el: Optional[ET.Element] = diagram.find("mxGraphModel")
+    model_el: Optional[ET.Element] = diagram if diagram.tag == "mxGraphModel" else diagram.find("mxGraphModel")
     if model_el is None:
         # Compressed pages store the payload as element text.
         text = (diagram.text or "").strip()
@@ -319,6 +319,8 @@ def parse_drawio_bytes(data: bytes, max_cells: int = 5000, max_bytes: int = 10 *
             wrapped=wrapped,
             raw_xml=ET.tostring(el, encoding="unicode"),
         )
+        if cid in cell_by_id:
+            raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "duplicate cell ID", [cid])
         cells.append(cell)
         cell_by_id[cid] = cell
         # Unknown objects: cells outside the stable n_/g_/e_ mapping (plus the
@@ -327,6 +329,18 @@ def parse_drawio_bytes(data: bytes, max_cells: int = 5000, max_bytes: int = 10 *
             continue
         if not (cid.startswith(("n_", "g_", "e_")) or "aiKind=" in (cell.style or "")):
             unknown_cells.append(cell)
+
+    visit_state: Dict[str, int] = {}
+    for cell in cells:
+        trail = []
+        parent = cell.id
+        while parent in cell_by_id and parent not in visit_state:
+            visit_state[parent] = 1
+            trail.append(parent)
+            parent = cell_by_id[parent].parent
+        if visit_state.get(parent) == 1:
+            raise ApiException(ErrorCode.DRAWIO_PARSE_FAILED, "XML cell parent cycle", [cell.id])
+        visit_state.update((id_, 2) for id_ in trail)
 
     # Reference integrity inside the uploaded file itself.
     for cell in cells:

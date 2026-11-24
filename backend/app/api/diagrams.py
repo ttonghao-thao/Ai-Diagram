@@ -4,20 +4,24 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.api.envelope import ok
 from app.graph.errors import GraphValidationError
 from app.graph.validate import collect_graph_issues, validate_graph
 from app.schemas.api import ApiException, ErrorCode
-from app.schemas.graph import GraphDocument
+from app.schemas.graph import Appearance, GraphDocument, GraphId, LayoutAlgorithm, LayoutDirection
 from app.storage.versions import utc_now
 from app.importer.xml_parser import parse_drawio_bytes
 from app.importer.model_map import graph_from_cells
+from app.importer.visual import cell_mapping, visual_state
+from app.llm.draft_review import review_draft
+from app.services.diagram_changes import prepare_change
+from app.services.materials import catalog_version, normalize_devices
 
 router = APIRouter(prefix="/api/v1")
 
@@ -52,6 +56,9 @@ def parse_and_validate(raw: Dict[str, Any]) -> tuple[GraphDocument, list]:
 class ParseRequest(BaseModel):
     text: str = Field(min_length=1, max_length=10000)
     diagramType: str = Field(pattern="^(network_topology|business_architecture)$")
+    appearance: Optional[Appearance] = None
+    algorithm: Optional[LayoutAlgorithm] = None
+    direction: Optional[LayoutDirection] = None
 
 
 class ValidateRequest(BaseModel):
@@ -59,7 +66,15 @@ class ValidateRequest(BaseModel):
 
 
 class LayoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     baseVersion: int = Field(ge=1)
+    scope: Literal["global", "local"] = "global"
+    algorithm: Literal["layered", "grouped", "star"] = "layered"
+    direction: Optional[LayoutDirection] = None
+    preserveStyles: bool = True
+    preserveLockedPositions: bool = True
+    nodeIds: List[GraphId] = Field(default_factory=list, max_length=1000)
 
 
 
@@ -139,7 +154,7 @@ async def list_diagrams(request: Request) -> Dict[str, Any]:
 
 
 @router.post("/diagrams")
-async def create_diagram(request: Request, graph: Dict[str, Any]) -> Dict[str, Any]:
+def create_diagram(request: Request, graph: Dict[str, Any]) -> Dict[str, Any]:
     """Create a diagram + initial version from a GraphDocument JSON body."""
     state = _get_state(request)
     started = time.time()
@@ -149,8 +164,11 @@ async def create_diagram(request: Request, graph: Dict[str, Any]) -> Dict[str, A
             ErrorCode.DIAGRAM_ALREADY_EXISTS,
             f"diagram '{doc.diagramId}' already exists; use a new diagramId or call /layout for a new version",
         )
-    render = state.renderer.render(graph)
-    state.db.create_diagram(doc.diagramId, doc.name, doc.diagramType, utc_now())
+    doc.schemaVersion = "1.1"
+    normalize_devices(doc)
+    render = state.renderer.render(doc.model_dump(exclude_none=True), state.materials.renderer_context(doc))
+    visual = visual_state(doc, parse_drawio_bytes(render.drawio_bytes), cell_mapping(doc))
+    visual["catalogVersion"] = catalog_version()
     graph_stored = reconcile_geometry(doc.model_dump(exclude_none=True), render.drawio_bytes)
     row = state.version_store.commit_new_version(
         diagram_id=doc.diagramId,
@@ -159,6 +177,9 @@ async def create_diagram(request: Request, graph: Dict[str, Any]) -> Dict[str, A
         graph=graph_stored,
         drawio_bytes=render.drawio_bytes,
         origin="initial",
+        expected_base_version=0,
+        visual_state=visual,
+        quality=render.quality,
     )
     state.db.record_ai_job(
         request_type="create_diagram", provider="renderer", model=None, status="ok",
@@ -173,6 +194,7 @@ async def create_diagram(request: Request, graph: Dict[str, Any]) -> Dict[str, A
         "version": {
             "version": row.version, "origin": row.origin, "sha256": row.sha256, "createdAt": row.created_at,
         },
+        "quality": render.quality,
         "warnings": [
             {"code": w.code, "message": w.message, "relatedIds": w.relatedIds, "severity": w.severity}
             for w in warnings
@@ -204,6 +226,8 @@ async def get_diagram(request: Request, diagram_id: str, version: Optional[int] 
             "sha256": row.sha256, "createdAt": row.created_at,
         },
         "graph": graph,
+        "visualState": state.version_store.read_artifact(diagram_id, v, "visual-state"),
+        "quality": state.version_store.read_artifact(diagram_id, v, "quality"),
     })
 
 
@@ -221,24 +245,33 @@ async def validate_diagram(request: Request, diagram_id: str, body: ValidateRequ
 
 
 @router.post("/diagrams/{diagram_id}/layout")
-async def layout_diagram(request: Request, diagram_id: str, body: LayoutRequest) -> Dict[str, Any]:
-    """Re-run the ELK layout on the latest graph and store it as a new version."""
+def layout_diagram(request: Request, diagram_id: str, body: LayoutRequest) -> Dict[str, Any]:
+    """Lay out known objects and preserve the original XML and version chain."""
     state = _get_state(request)
     diagram = state.db.get_diagram(diagram_id)
     if diagram is None:
         raise ApiException(ErrorCode.DIAGRAM_NOT_FOUND, f"diagram '{diagram_id}' does not exist")
+    if diagram.current_version != body.baseVersion:
+        raise ApiException(ErrorCode.VERSION_CONFLICT, "图纸版本已更新", {"currentVersion": diagram.current_version})
     graph = state.version_store.read_graph(diagram_id, diagram.current_version)
     doc, warnings = parse_and_validate(graph)
-    render = state.renderer.render(graph)
-    graph_stored = reconcile_geometry(doc.model_dump(exclude_none=True), render.drawio_bytes)
+    candidate = doc.model_copy(deep=True)
+    candidate.schemaVersion = "1.1"
+    candidate.layout.algorithm = body.algorithm
+    if body.direction:
+        candidate.layout.direction = body.direction
+    if missing := set(body.nodeIds) - {node.id for node in doc.nodes}:
+        raise ApiException(ErrorCode.GRAPH_INVALID_REFERENCE, "局部范围包含未知设备", sorted(missing))
+    prepared = prepare_change(
+        state, diagram_id, diagram.current_version, doc, candidate, [], scope=body.scope,
+        movable=body.nodeIds, preserve_styles=body.preserveStyles, preserve_positions=body.preserveLockedPositions,
+        explicit_layout=True,
+    )
     row = state.version_store.commit_new_version(
-        diagram_id=diagram_id,
-        diagram_name=diagram.name,
-        diagram_type=diagram.diagram_type,
-        graph=graph_stored,
-        drawio_bytes=render.drawio_bytes,
-        origin="layout",
-        expected_base_version=body.baseVersion,
+        diagram_id=diagram_id, diagram_name=diagram.name, diagram_type=diagram.diagram_type,
+        graph=prepared.graph.model_dump(exclude_none=True), drawio_bytes=prepared.xml, origin="layout",
+        expected_base_version=body.baseVersion, manifest_extra={"cellMapping": prepared.mapping},
+        visual_state=prepared.visual, quality=prepared.quality,
     )
     return ok(request, {
         "version": {
@@ -249,7 +282,31 @@ async def layout_diagram(request: Request, diagram_id: str, body: LayoutRequest)
             {"code": w.code, "message": w.message, "relatedIds": w.relatedIds, "severity": w.severity}
             for w in warnings
         ],
+        "quality": prepared.quality,
+        "diff": prepared.diff,
     })
+
+
+class QualityRequest(BaseModel):
+    version: Optional[int] = Field(default=None, ge=1)
+
+
+@router.post("/diagrams/{diagram_id}/quality")
+def diagram_quality(request: Request, diagram_id: str, body: Optional[QualityRequest] = None) -> Dict[str, Any]:
+    state = _get_state(request)
+    diagram = state.db.get_diagram(diagram_id)
+    if diagram is None:
+        raise ApiException(ErrorCode.DIAGRAM_NOT_FOUND, "图纸不存在")
+    version = body.version if body and body.version else diagram.current_version
+    store = state.version_store
+    report = store.read_artifact(diagram_id, version, "quality")
+    if report is None:
+        graph = store.read_graph(diagram_id, version)
+        doc, _ = parse_and_validate(graph)
+        xml, _ = store.read_drawio(diagram_id, version)
+        mapping = cell_mapping(doc, store.read_manifest(diagram_id, version).get("cellMapping"))
+        report = state.renderer.quality(graph, xml, state.materials.renderer_context(doc) | {"cellMapping": mapping})
+    return ok(request, {"version": version, "quality": report})
 
 
 @router.get("/diagrams/{diagram_id}/versions")
@@ -340,7 +397,12 @@ async def rollback_diagram(request: Request, diagram_id: str, body: RollbackRequ
         drawio_bytes=xml_bytes,
         origin="rollback",
         expected_base_version=body.baseVersion,
-        manifest_extra={"rolledBackTo": body.targetVersion},
+        manifest_extra={"rolledBackTo": body.targetVersion, **{
+            key: value for key, value in state.version_store.read_manifest(diagram_id, body.targetVersion).items()
+            if key in {"cellMapping", "unknownCellCount", "normalizedFromCompressed"}
+        }},
+        visual_state=state.version_store.read_artifact(diagram_id, body.targetVersion, "visual-state"),
+        quality=state.version_store.read_artifact(diagram_id, body.targetVersion, "quality"),
     )
     return ok(request, {
         "version": {
@@ -372,6 +434,17 @@ async def parse_text(request: Request, body: ParseRequest) -> Dict[str, Any]:
         status="ok", error_code=None,
         duration_ms=int((time.time() - started) * 1000),
     )
+    doc.schemaVersion = "1.1"
+    normalize_devices(doc)
+    if provider != "mock":
+        review_draft(body.text, doc)
+    if body.appearance:
+        prior = doc.appearance.model_dump(exclude_none=True) if doc.appearance else {}
+        doc.appearance = Appearance.model_validate(prior | body.appearance.model_dump(exclude_none=True))
+    if body.algorithm:
+        doc.layout.algorithm = body.algorithm
+    if body.direction:
+        doc.layout.direction = body.direction
     issues = _graph_issues_payload(doc)
     return ok(request, {
         "graph": doc.model_dump(exclude_none=True),

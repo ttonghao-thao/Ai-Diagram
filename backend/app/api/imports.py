@@ -6,16 +6,22 @@ diffed against the current version. Commit stores the uploaded XML verbatim
 """
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.api.envelope import ok
 
 from app.importer.model_map import diff_graphs, graph_from_cells
-from app.importer.xml_parser import parse_drawio_bytes
+from app.importer.visual import cell_mapping, visual_state
+from app.importer.xml_parser import normalize_to_uncompressed, parse_drawio_bytes
 from app.schemas.api import ApiException, ErrorCode
+from app.schemas.graph import GraphDocument
+from app.services.diagram_changes import require_quality
+from app.services.materials import catalog_version, normalize_devices
 from app.storage.versions import utc_now
 
 router = APIRouter(prefix="/api/v1")
@@ -30,6 +36,8 @@ class PreviewTokenStore:
 
     def put(self, payload: Dict[str, Any]) -> str:
         self._cleanup()
+        while len(self._store) >= 12:
+            self._store.pop(next(iter(self._store)))
         token = uuid.uuid4().hex
         self._store[token] = {"createdAt": utc_now(), **payload}
         return token
@@ -48,8 +56,6 @@ class PreviewTokenStore:
         return self._store.get(token)
 
     def _cleanup(self) -> None:
-        import time
-
         now = time.time()
         # Entries without a usable timestamp expire immediately rather than
         # living forever (the old `v.get("_ts", now)` default made the delta 0).
@@ -88,6 +94,7 @@ def _register_token_store(app) -> None:
         app.state.import_tokens = PreviewTokenStore()
 
 
+@router.post("/diagrams/{diagram_id}/import/preview")
 @router.post("/diagrams/{diagram_id}/import/drawio")
 async def import_preview(
     request: Request,
@@ -112,11 +119,28 @@ async def import_preview(
         max_cells=state.settings.max_xml_cells,
         max_bytes=state.settings.max_drawio_upload_bytes,
     )
-    result = graph_from_cells(parsed, diagram_id, diagram.name, diagram.diagram_type)
-    current_graph = state.version_store.read_graph(diagram_id, diagram.current_version)
-    from app.schemas.graph import GraphDocument
-
+    store = state.version_store
+    current_graph = store.read_graph(diagram_id, diagram.current_version)
     old_doc = GraphDocument.model_validate(current_graph)
+    old_mapping = cell_mapping(old_doc, store.read_manifest(diagram_id, diagram.current_version).get("cellMapping"))
+    result = graph_from_cells(parsed, diagram_id, diagram.name, diagram.diagram_type, old_mapping)
+    old_xml, _ = store.read_drawio(diagram_id, diagram.current_version)
+    old_parsed = parse_drawio_bytes(old_xml, max_cells=state.settings.max_xml_cells)
+    result.graph.schemaVersion = "1.1"
+    result.graph.appearance = old_doc.appearance
+    result.graph.metadata = dict(old_doc.metadata)
+    result.graph.warnings = list(old_doc.warnings)
+    result.graph.layout.direction = old_doc.layout.direction
+    result.graph.layout.preserveManualPositions = old_doc.layout.preserveManualPositions
+    valid_nodes = {node.id for node in result.graph.nodes}
+    valid_groups = {group.id for group in result.graph.groups}
+    if old_doc.layout.centerNodeId in valid_nodes:
+        result.graph.layout.centerNodeId = old_doc.layout.centerNodeId
+    def valid_rule(rule):
+        ids = {rule.source, rule.target} if rule.type == "relativePosition" else set(rule.nodes)
+        return ids <= (valid_nodes | valid_groups if rule.type == "preservePosition" else valid_nodes)
+    if old_doc.layout.constraints is not None:
+        result.graph.layout.constraints = [rule for rule in old_doc.layout.constraints if valid_rule(rule)]
     # Semantic-only fields (properties/origin/manualLocked) are not stored in
     # draw.io XML; carry them over from the current graph so a Desktop edit
     # cycle never drops e.g. explicit IP annotations (docs/02 section 8).
@@ -137,8 +161,40 @@ async def import_preview(
         prev = old_groups_by_id.get(group.id)
         if prev is not None:
             group.manualLocked = prev.manualLocked
+    prior_edges = {edge.id: edge for edge in old_doc.edges}
+    for edge in result.graph.edges:
+        prev = prior_edges.get(edge.id)
+        if prev is None:
+            continue
+        before = old_parsed.cell_by_id.get(old_mapping.get(edge.id))
+        after = parsed.cell_by_id.get(result.graph_id_to_cell.get(edge.id))
+        edge.sourcePort, edge.targetPort = prev.sourcePort, prev.targetPort
+        edge.style = dict(prev.style)
+        if before and after and (before.value or "") == (after.value or ""):
+            edge.label = prev.label
+        if before and after and (before.geometry.points if before.geometry else []) == (after.geometry.points if after.geometry else []):
+            edge.waypoints = prev.waypoints
+    normalize_devices(result.graph)
     diff = diff_graphs(old_doc, result.graph)
+    visual = visual_state(result.graph, parsed, result.graph_id_to_cell,
+                          previous=store.read_artifact(diagram_id, diagram.current_version, "visual-state"),
+                          prior_xml=old_parsed, prior_mapping=old_mapping, desktop=True, diff=diff)
+    visual["catalogVersion"] = catalog_version()
+    stored_xml, was_compressed = normalize_to_uncompressed(
+        data, max_cells=state.settings.max_xml_cells, max_bytes=state.settings.max_drawio_upload_bytes,
+    )
+    report = await run_in_threadpool(
+        state.renderer.quality, result.graph.model_dump(exclude_none=True), stored_xml,
+        state.materials.renderer_context(result.graph) | {
+            "cellMapping": result.graph_id_to_cell,
+            "manualStyleIds": [id_ for id_, mark in visual["nodes"].items() if mark["manualStyleLocked"]],
+        },
+    )
+    require_quality(report)
     warnings = []
+    if len(result.graph.layout.constraints or ()) < len(old_doc.layout.constraints or ()):
+        warnings.append({"code": "LAYOUT_CONSTRAINTS_PRUNED", "message": "已移除引用被删除对象的布局约束",
+                         "requiresConfirmation": False})
     if result.unknown_cells:
         warnings.append({
             "code": "UNKNOWN_CELLS_PRESERVED",
@@ -165,9 +221,13 @@ async def import_preview(
         "baseVersion": baseVersion,
         "graph": result.graph.model_dump(exclude_none=True),
         "cellMapping": result.graph_id_to_cell,
-        "uploadedXml": data,
+        "storedXml": stored_xml,
+        "sourceXml": data if was_compressed else None,
+        "wasCompressed": was_compressed,
+        "quality": report,
+        "visual": visual,
         "unknownCellCount": len(result.unknown_cells),
-        "_ts": __import__("time").time(),
+        "_ts": time.time(),
     })
     return ok(request, {
         "diff": diff.to_payload(),
@@ -177,6 +237,7 @@ async def import_preview(
         "requiresConfirmation": requires_confirmation,
         "confirmationToken": token,
         "candidateVersion": diagram.current_version + 1,
+        "quality": report,
     })
 
 
@@ -200,28 +261,21 @@ async def import_commit(request: Request, diagram_id: str, body: Dict[str, Any])
             ErrorCode.VERSION_CONFLICT,
             f"diagram moved since preview (current v{diagram.current_version if diagram else 'gone'})",
         )
-    # Normalize compressed Desktop saves to uncompressed single-page XML so
-    # subsequent AI patch application is never refused on encoding grounds.
-    # The semantic content is identical; only the page encoding changes.
-    from app.importer.xml_parser import normalize_to_uncompressed
-
-    stored_xml, was_compressed = normalize_to_uncompressed(
-        entry["uploadedXml"],
-        max_cells=state.settings.max_xml_cells,
-        max_bytes=state.settings.max_drawio_upload_bytes,
-    )
     row = state.version_store.commit_new_version(
         diagram_id=diagram_id,
         diagram_name=diagram.name,
         diagram_type=diagram.diagram_type,
         graph=entry["graph"],
-        drawio_bytes=stored_xml,
+        drawio_bytes=entry["storedXml"],
         origin="desktop_import",
         expected_base_version=base_version,
+        visual_state=entry["visual"],
+        quality=entry["quality"],
+        source_drawio=entry["sourceXml"],
         manifest_extra={
             "cellMapping": entry["cellMapping"],
             "unknownCellCount": entry["unknownCellCount"],
-            "normalizedFromCompressed": was_compressed,
+            "normalizedFromCompressed": entry["wasCompressed"],
         },
     )
     return ok(request, {
@@ -230,5 +284,6 @@ async def import_commit(request: Request, diagram_id: str, body: Dict[str, Any])
             "sha256": row.sha256, "createdAt": row.created_at,
         },
         "preservedUnknownCells": entry["unknownCellCount"],
-        "normalizedFromCompressed": was_compressed,
+        "quality": entry["quality"],
+        "normalizedFromCompressed": entry["wasCompressed"],
     })

@@ -1,0 +1,49 @@
+{
+  "id": "cisco",
+  "name": "Cisco 经典网络",
+  "version": "1.0",
+  "iconLibrary": "cisco",
+  "baseTheme": "cisco",
+  "devices": {
+    "switch": "cisco.misc.route_switch_processor",
+    "router": "cisco.routers.router",
+    "firewall": "cisco.security.ios_firewall",
+    "server": "cisco.servers.server_with_router",
+    "cloud": "cisco.storage.cloud",
+    "vm": "cisco.servers.software_based_server",
+    "database": "cisco.storage.relational_database",
+    "client": "cisco.computers_and_peripherals.pc",
+    "access_point": "cisco.misc.access_point",
+    "load_balancer": "cisco.directors.localdirector",
+    "vpn_gateway": "cisco.hubs_and_gateways.vpn_gateway",
+    "hub": "cisco.hubs_and_gateways.cisco_hub"
+  },
+  "node": {
+    "fontSize": 12,
+    "fontColor": "#000000",
+    "labelSpacing": 8
+  },
+  "edge": {
+    "routing": "auto",
+    "labelPolicy": "explicit_only",
+    "arrowPolicy": "semantic",
+    "style": {
+      "strokeColor": "#000000",
+      "strokeWidth": 1,
+      "labelBackgroundColor": "#FFFFFF"
+    }
+  },
+  "layout": {
+    "nodeSpacing": 48,
+    "layerSpacing": 80,
+    "groupPadding": 24
+  },
+  "group": {
+    "style": {
+      "rounded": 0,
+      "fillColor": "#F5F5F5",
+      "strokeColor": "none",
+      "swimlaneFillColor": "#FBFBFB"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "telecom",
+  "name": "通信接入网络",
+  "version": "1.0",
+  "iconLibrary": "telecom",
+  "baseTheme": "networks",
+  "devices": {
+    "olt": "cisco.misc.optical_transport",
+    "optical_splitter": "cisco.misc.optical_transport",
+    "onu": "networks.modem",
+    "ont": "networks.modem",
+    "fttr_main_gateway": "networks.wireless_modem",
+    "fttr_sub_gateway": "networks.wireless_hub",
+    "patch_panel": "networks.patch_panel",
+    "smart_patch_panel": "networks.patch_panel"
+  },
+  "node": {
+    "fontSize": 12,
+    "fontColor": "#24374D",
+    "labelSpacing": 8
+  },
+  "edge": {
+    "routing": "auto",
+    "labelPolicy": "explicit_only",
+    "arrowPolicy": "semantic",
+    "style": {}
+  },
+  "layout": {
+    "nodeSpacing": 52,
+    "layerSpacing": 86,
+    "groupPadding": 24
+  },
+  "group": {
+    "style": {}
+  }
+}

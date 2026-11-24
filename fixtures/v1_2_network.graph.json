@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.1",
+  "diagramId": "v12_network",
+  "name": "分区企业网络",
+  "diagramType": "network_topology",
+  "appearance": {"themeId": "cisco", "edgeRouting": "auto", "edgeLabelPolicy": "hidden", "edgeArrowPolicy": "semantic"},
+  "groups": [
+    {"id": "campus", "label": "生产园区"},
+    {"id": "servers", "label": "服务器区", "parentId": "campus"}
+  ],
+  "nodes": [
+    {"id": "wan", "label": "公网", "kind": "cloud", "properties": {"networkRole": "internet"}},
+    {"id": "perimeter", "label": "边界防火墙", "kind": "firewall", "properties": {"networkRole": "perimeter_security"}},
+    {"id": "core", "label": "核心交换机", "kind": "switch", "properties": {"deviceType": "layer3_switch", "networkRole": "core"}},
+    {"id": "aggregation", "label": "汇聚交换机", "kind": "switch", "properties": {"networkRole": "aggregation"}},
+    {"id": "access", "label": "接入交换机", "kind": "switch", "properties": {"networkRole": "access"}},
+    {"id": "internal_fw", "label": "服务器区防火墙", "kind": "firewall", "properties": {"networkRole": "internal_security"}},
+    {"id": "srv3", "label": "服务器 03", "kind": "server", "groupId": "servers"},
+    {"id": "srv1", "label": "服务器 01", "kind": "server", "groupId": "servers"},
+    {"id": "srv2", "label": "服务器 02", "kind": "server", "groupId": "servers"}
+  ],
+  "edges": [
+    {"id": "internet", "source": "perimeter", "target": "wan", "kind": "physical", "direction": "undirected"},
+    {"id": "backbone", "source": "core", "target": "perimeter", "kind": "physical", "direction": "undirected", "label": "万兆主干"},
+    {"id": "e_core", "source": "aggregation", "target": "core", "kind": "physical", "direction": "undirected"},
+    {"id": "e_access", "source": "access", "target": "aggregation", "kind": "physical", "direction": "undirected"},
+    {"id": "e_internal", "source": "internal_fw", "target": "core", "kind": "physical", "direction": "undirected"},
+    {"id": "e_srv3", "source": "internal_fw", "target": "srv3", "kind": "physical", "direction": "undirected"},
+    {"id": "e_srv1", "source": "internal_fw", "target": "srv1", "kind": "physical", "direction": "undirected"},
+    {"id": "e_srv2", "source": "internal_fw", "target": "srv2", "kind": "physical", "direction": "undirected"}
+  ],
+  "layout": {
+    "algorithm": "grouped", "direction": "DOWN", "preserveManualPositions": true,
+    "constraints": [
+      {"type": "sameRank", "nodes": ["srv1", "srv2", "srv3"]},
+      {"type": "order", "axis": "x", "nodes": ["srv1", "srv2", "srv3"]}
+    ]
+  }
+}
