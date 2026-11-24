@@ -499,3 +499,19 @@ OpenAI 兼容通道不支持该参数；JSON 提取兜底不变）。
 新增 `tests/test_llm_openai.py`（6 例）：提示词括号安全渲染（本可提前拦截此 bug）、
 markdown 围栏 JSON 提取、非法输出耗尽修复轮次、修复后恢复、response_format 400 回退、
 5xx → LLM_UNAVAILABLE。backend **98 passed**。
+
+## 15. 线上缺陷修复 2：LLM 幻觉字段清洗（2026-11-24）
+
+用户 qwen 通道第二轮实测暴露：模型给**边**对象虚构 `properties` 字段（schema 的 edge 无此字段且
+additionalProperties:false），3 轮修复均未纠正 → `LLM_INVALID_OUTPUT`。修复两层：
+
+1. **提示词**：新增第 9 条"字段白名单"规则（node/edge/group/顶层各自允许的字段，明确"边没有
+   properties 字段"，禁止 explanation/notes 等额外字段）；
+2. **适配器兜底**：`normalize_llm_graph_draft` 在 Pydantic 校验前剔除 LLM 草稿中白名单之外的
+   键（顶层与 node/edge/group 分节过滤，仅删不改，丢弃字段记入日志）——结构性错误仍走修复/拒绝
+   循环；这是"模型输出不可信、后端兜底"原则在字段层的落实，不放宽存储校验。
+
+附带：适配器每轮尝试输出**脱敏日志**（metadata only：节点/边数、失败原因摘要，不含原文与拓扑），
+解决"页面一直解析中、后台无日志"的观测盲区。
+
+新增测试 3 例（幻觉字段单测、含多余字段端到端解析、提示词白名单断言）。backend **101 passed**。

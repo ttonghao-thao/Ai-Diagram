@@ -30,6 +30,7 @@ PARSE_GRAPH_SYSTEM_PROMPT = """你是一个严格的网络/业务拓扑结构化
 6. 未识别的设备类型在 warnings 中加入 {code: "DEVICE_TYPE_GUESSED", message, requiresConfirmation: false}。
 7. 不要发明 groups（除非用户明确描述了分区/区域及其成员）；diagramId 由用户描述生成合法 id（^[A-Za-z][A-Za-z0-9_-]{0,63}$）；layout.algorithm 固定为 "layered"，direction 固定为 "DOWN"，preserveManualPositions 为 true。
 8. schemaVersion 固定为 "1.0"；nodes/groups/edges 必须存在（可为空数组）；所有 id 全局唯一。
+9. 字段白名单：node 只允许 id/label/kind/groupId/properties/geometry/manualLocked/style/origin；edge 只允许 id/source/target/kind/direction/label/sourcePort/targetPort/waypoints/style（**边没有 properties 字段**）；group 只允许 id/label/parentId/geometry/manualLocked/style；顶层只允许 schemaVersion/diagramId/name/diagramType/nodes/groups/edges/layout/metadata/warnings。不要添加任何白名单之外的字段（如 explanation、notes）。
 
 JSON Schema（GraphDocument v1）：
 {schema}

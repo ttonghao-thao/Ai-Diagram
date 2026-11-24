@@ -14,6 +14,7 @@ only request metadata (no raw text, no topology, docs/04 section 6).
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any, Dict, List, Protocol
 
@@ -327,6 +328,54 @@ class MockLlmAdapter:
         }
 
 
+# Field whitelist mirrors contracts/graph.schema.json (additionalProperties:
+# false). LLM drafts commonly hallucinate extra keys (e.g. `properties` on
+# edges, root-level `notes`); they are dropped before validation instead of
+# failing the whole draft. Structural errors still fail normally.
+_GRAPH_ROOT_FIELDS = {
+    "schemaVersion", "diagramId", "name", "diagramType",
+    "nodes", "groups", "edges", "layout", "metadata", "warnings",
+}
+_GRAPH_SECTION_FIELDS = {
+    "nodes": {"id", "label", "kind", "groupId", "properties", "geometry",
+              "manualLocked", "style", "origin"},
+    "edges": {"id", "source", "target", "kind", "direction", "label",
+              "sourcePort", "targetPort", "waypoints", "style"},
+    "groups": {"id", "label", "parentId", "geometry", "manualLocked", "style"},
+}
+
+logger = logging.getLogger(__name__)
+
+
+def normalize_llm_graph_draft(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip hallucinated extra fields from an LLM graph draft.
+
+    Only unknown keys are removed (recorded in the log); nothing inside the
+    whitelist is modified. Stored graphs still pass the strict schema.
+    """
+    out = {k: v for k, v in raw.items() if k in _GRAPH_ROOT_FIELDS}
+    dropped_root = set(raw) - set(out)
+    if dropped_root:
+        logger.info("llm draft: dropped root fields %s", sorted(dropped_root))
+    for section, allowed in _GRAPH_SECTION_FIELDS.items():
+        items = out.get(section)
+        if not isinstance(items, list):
+            continue
+        cleaned = []
+        for item in items:
+            if not isinstance(item, dict):
+                cleaned.append(item)
+                continue
+            extra = set(item) - allowed
+            if extra:
+                logger.info("llm draft: dropped %s fields %s on '%s'",
+                            section, sorted(extra), item.get("id", "?"))
+                item = {k: v for k, v in item.items() if k in allowed}
+            cleaned.append(item)
+        out[section] = cleaned
+    return out
+
+
 # ---------------------------------------------------------------------------
 # OpenAI-compatible adapter.
 # ---------------------------------------------------------------------------
@@ -416,9 +465,17 @@ class OpenAICompatibleAdapter:
                 raw = self._extract_json(content)
                 if not isinstance(raw, dict):
                     raise ValueError("output is not a JSON object")
-                return GraphDocument.model_validate(raw)
+                raw = normalize_llm_graph_draft(raw)
+                doc = GraphDocument.model_validate(raw)
+                logger.info("parse_graph ok: %d nodes, %d edges (attempt %d)",
+                            len(doc.nodes), len(doc.edges), attempt + 1)
+                return doc
             except (json.JSONDecodeError, ValueError, ValidationError) as exc:
                 last_errors = self._format_errors(exc)
+                # Metadata only in logs (no raw text/topology, docs/04 section 6).
+                logger.warning("parse_graph attempt %d/%d failed: %s",
+                               attempt + 1, self.max_retries + 1,
+                               "; ".join(last_errors[:5]))
                 feedback = repair_feedback_prompt(last_errors)
         raise ApiException(
             ErrorCode.LLM_INVALID_OUTPUT,

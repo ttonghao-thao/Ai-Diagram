@@ -149,3 +149,58 @@ async def test_chat_unavailable_on_5xx(monkeypatch) -> None:
     with pytest.raises(ApiException) as exc:
         await _adapter()._chat("sys", "usr")
     assert exc.value.code == ErrorCode.LLM_UNAVAILABLE
+
+
+def test_normalize_strips_hallucinated_fields() -> None:
+    """Regression of the live qwen failure: edges with `properties` and
+    root-level notes must be cleaned, whitelisted content untouched."""
+    from app.llm.adapter import normalize_llm_graph_draft
+
+    raw = {
+        "schemaVersion": "1.0", "diagramId": "t1", "name": "n", "diagramType": "network_topology",
+        "nodes": [{"id": "n1", "label": "服务器", "kind": "server", "notes": "x"}],
+        "groups": [],
+        "edges": [{"id": "e1", "source": "n1", "target": "n1", "kind": "physical",
+                   "direction": "undirected", "properties": {"ip": "192.0.2.1"}}],
+        "layout": {"algorithm": "layered", "direction": "DOWN", "preserveManualPositions": True},
+        "notes": "model explanation",
+    }
+    out = normalize_llm_graph_draft(raw)
+    assert "notes" not in out
+    assert "notes" not in out["nodes"][0]
+    assert "properties" not in out["edges"][0]
+    assert out["nodes"][0]["kind"] == "server"  # whitelisted content intact
+
+
+@pytest.mark.asyncio
+async def test_parse_graph_tolerates_extra_fields(monkeypatch) -> None:
+    """End-to-end regression of the production failure: the model returned
+    edges[].properties and the draft must still validate after cleanup."""
+    raw_with_extras = (
+        '{"schemaVersion":"1.0","diagramId":"q1","name":"qwen草稿","diagramType":"network_topology",'
+        '"nodes":[{"id":"sw","label":"核心交换机","kind":"switch"},'
+        '{"id":"s1","label":"服务器1","kind":"server"}],'
+        '"edges":[{"id":"l1","source":"sw","target":"s1","kind":"physical",'
+        '"direction":"undirected","properties":{"bandwidth":"1G"}}],'
+        '"groups":[],"layout":{"algorithm":"layered","direction":"DOWN","preserveManualPositions":true},'
+        '"notes":"这是我的解释"}'
+    )
+    adapter = _adapter()
+    calls: list[str] = []
+
+    async def fake_chat(system: str, user: str) -> str:
+        calls.append(user)
+        return raw_with_extras
+
+    monkeypatch.setattr(adapter, "_chat", fake_chat)
+    doc = await adapter.parse_graph("一台核心交换机连接一台服务器", "network_topology")
+    assert len(doc.nodes) == 2 and len(doc.edges) == 1
+    assert doc.edges[0].properties is None if hasattr(doc.edges[0], "properties") else True
+    assert len(calls) == 1  # cleaned on first attempt: no repair round needed
+
+
+def test_parse_prompt_states_edge_field_whitelist() -> None:
+    """The prompt must tell the model edges carry no properties field."""
+    system = parse_graph_system_prompt()
+    assert "边没有 properties 字段" in system
+    assert "字段白名单" in system
