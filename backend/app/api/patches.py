@@ -60,14 +60,13 @@ async def patch_preview(request: Request, diagram_id: str, body: PatchPreviewReq
         patch = validate_patch_payload(body.patch)
         provider = "client"
     elif body.instruction:
-        settings = state.llm_settings.runtime_settings()
-        adapter = state.llm_adapter_factory(settings)
+        adapter = state.llm_adapter_factory(state.settings)
         provider = adapter.name
         try:
             patch = await adapter.propose_patch(body.instruction, doc, diagram.current_version)
         except ApiException as exc:
             state.db.record_ai_job(
-                request_type="propose_patch", provider=provider, model=settings.llm_model or None,
+                request_type="propose_patch", provider=provider, model=state.settings.llm_model or None,
                 status="error", error_code=exc.code, duration_ms=int((time.time() - started) * 1000),
                 diagram_id=diagram_id, version=diagram.current_version,
             )
@@ -108,9 +107,9 @@ async def patch_preview(request: Request, diagram_id: str, body: PatchPreviewReq
         "movedNodes": preview.layoutPlan.movedNodes,
     }
 
-    if body.patch is None and body.instruction:
+    if body.instruction:
         state.db.record_ai_job(
-            request_type="propose_patch", provider=provider, model=settings.llm_model or None,
+            request_type="propose_patch", provider=provider, model=state.settings.llm_model or None,
             status="ok", error_code=None, duration_ms=int((time.time() - started) * 1000),
             diagram_id=diagram_id, version=diagram.current_version,
         )

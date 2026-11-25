@@ -6,7 +6,7 @@
 快速启动（2026-11-23 实机两连修：.dockerignore 按目录名排除在旧版 Docker 不可靠，已改为仅安全形态并有守卫测试；**重跑前务必 `docker builder prune -f` 清缓存**）：
 
 ```bash
-cp env.example .env          # 新部署的运行限额，模型配置在门户填写
+cp env.example .env          # 按需填写 LLM_*；默认 LLM_ENABLED=false 即完整可用
 docker compose up --build    # 端口 8000；数据持久化于命名卷 studio-data
 curl http://127.0.0.1:8000/health
 ```
@@ -17,4 +17,3 @@ curl http://127.0.0.1:8000/health
 - `.dockerignore`（仓库根）排除 `.git`、`node_modules`、`dist`、`storage`、`out`、`.env` 等
 - `HEALTHCHECK` 与 compose `healthcheck` 都打 `/health`，`rendererAvailable` 由后端探测渲染器 CLI 是否存在
 - 版本数据（SQLite + 逐版本快照）全部在 `/data/storage`，升级镜像不丢数据；备份 = 备份该卷
-- 启动后在「LLM 配置」保存模型参数。已有部署首次升级会导入旧环境配置，密钥加密文件也保存在数据卷中。

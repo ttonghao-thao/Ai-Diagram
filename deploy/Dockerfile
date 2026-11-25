@@ -34,6 +34,8 @@ RUN cd /studio/renderer && npm run build \
 
 ENV STORAGE_ROOT=/data/storage \
     DATABASE_PATH=/data/storage/studio.db \
+    LLM_ENABLED=false \
+    LLM_PROVIDER=mock \
     RENDERER_CLI=/studio/renderer/dist/src/cli.js \
     ICONS_DIR=/studio/renderer/assets/icons \
     FRONTEND_DIST=/studio/frontend/dist

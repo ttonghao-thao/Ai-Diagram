@@ -98,5 +98,5 @@ flowchart TB
 
 - Node.js Renderer 首选通过 CLI 由 API 调用，stdin/stdout 传递受校验数据；`subprocess.run` 指定 argv、`shell=False`、timeout、输出大小限制；必要时再拆独立服务。
 - Python FastAPI 负责所有外部 API；使用 SQLite+文件系统即可，不需要一开始使用 Redis、消息队列或微服务。
-- 模型启用状态、服务地址、密钥、模型和调用参数通过门户更新。FastAPI 将配置保存在 SQLite，每次模型调用读取当前配置。运行路径与部署限额通过环境变量管理。
+- 模型 endpoint、key、model 使用 `.env`；配置里至少要有 `LLM_ENABLED`、`LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`、`LLM_TIMEOUT_SECONDS`、`LLM_MAX_RETRIES`。
 - 生产内网拓扑优先接私有模型；默认不日志记录原始文本、账号密钥和完整网络资产。

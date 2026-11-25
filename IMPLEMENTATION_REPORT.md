@@ -633,19 +633,3 @@ Ollama 0.40.11，`qwen3.5:2b`，模型摘要前缀 `0689d44085e0`。经本地 Op
 ### 决策与待验收
 
 采用工作台级个人素材库、候选正交路径和受保护对象优先的布局策略。组合图形进入导入及导出流程，放置为单一设备节点的验收后续跟踪。Windows draw.io Desktop 及目标服务器 Docker Compose 实机验收均未验证。实现和待跟踪口径见 [V1.2 实施计划](docs/12_V1_2_IMPLEMENTATION.md) 与 [遗留问题](docs/11_OPEN_ISSUES.md)。
-
-## 18. 门户 LLM 在线配置
-
-### 实施
-
-1. SQLite 新增 `llm_settings` 配置记录，首次启动迁移旧环境值。密码字段用 Fernet 加密保存，加密文件存于数据目录，权限为 `0600`。
-2. `GET/PATCH /api/v1/settings/llm` 按版本读写设置。接口回读仅返回 `****` 或空字符串。旧密钥绑定到原服务地址。
-3. 文本解析和自然语言 Patch 每次读取当前配置。前端在保存后重新读取健康状态，重启后配置可从数据目录恢复。
-
-主要改动位于 `backend/app/llm/settings.py`、`backend/app/api/settings.py` 和 `frontend/src/components/LlmSettingsPanel.tsx`。GraphDocument、GraphPatch 和图纸版本契约沿用现有定义。部署升级步骤见 [部署文档](docs/09_DEPLOYMENT.md)。
-
-### 验证
-
-- `.venv/bin/python -m pytest backend/tests` 在隔离的 SQLite 与存储目录中通过 118 项。覆盖首次迁移、密钥加密、掩码、重启保留、不同地址的密钥隔离、并发版本检查及两个 LLM 请求入口。
-- `npm --prefix frontend run build` 通过。Chrome 连接本地 Uvicorn 和独立的 OpenAI-compatible HTTP 测试端点，验证启用、保存、保留、替换、清除密钥和重启恢复。测试端点收到了预期的模型及鉴权头。
-- `.venv/bin/python -m pip check` 通过。外部模型网关与目标服务器 Docker Compose 实机未验证。

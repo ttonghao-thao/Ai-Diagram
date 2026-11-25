@@ -62,33 +62,12 @@ export interface ShapePreferences {
   deviceTypes: string[];
 }
 
-export interface LlmOptions {
-  enabled: boolean;
-  provider: 'mock' | 'openai';
-  baseUrl: string;
-  model: string;
-  timeoutSeconds: number;
-  maxRetries: number;
-  reasoningEffort: string;
-  privateEndpoint: boolean;
-}
-
-export interface LlmSettings extends LlmOptions {
-  version: number;
-  apiKey: '' | '****';
-}
-
-export type LlmSettingsChanges = Partial<LlmOptions> & { baseVersion: number; apiKey?: string | null };
-
 function jsonRequest<T = any>(path: string, method: string, payload: unknown) {
   return request<T>(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 }
 
 export const api = {
   health: () => request('/api/v1/health'),
-  llmSettings: () => request<LlmSettings>('/api/v1/settings/llm', { cache: 'no-store' }),
-  updateLlmSettings: (changes: LlmSettingsChanges) =>
-    jsonRequest<LlmSettings>('/api/v1/settings/llm', 'PATCH', changes),
   listDiagrams: () => request('/api/v1/diagrams'),
   getDiagram: (id: string) => request(`/api/v1/diagrams/${encodeURIComponent(id)}`),
   listVersions: (id: string) => request(`/api/v1/diagrams/${encodeURIComponent(id)}/versions`),

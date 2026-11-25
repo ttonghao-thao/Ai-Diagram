@@ -12,7 +12,7 @@ npm --prefix frontend run build
 .venv/bin/python scripts/benchmark_v1_2.py
 ```
 
-使用配置好的 OpenAI-compatible 服务运行固定的 30 条生成和 3 条 Patch 样本。独立评估脚本通过 `LLM_*` 获取本次测试配置，门户服务使用 SQLite 中保存的配置。模型评估独立记录 Schema 合法率、节点和连线的精确率与召回率、素材匹配和运行耗时。
+使用配置好的 OpenAI-compatible 服务运行固定的 30 条生成和 3 条 Patch 样本。模型评估独立记录 Schema 合法率、节点和连线的精确率与召回率、素材匹配和运行耗时。
 
 ```bash
 .venv/bin/python scripts/verify_v1_2_model.py --output /tmp/v1_2_model_report.json
@@ -52,7 +52,7 @@ python3 -m pytest tests/test_render_output.py
 ### API 级全链路脚本（可选，验证 v1→v2→v3）
 
 ```bash
-# 服务启动后，在门户「LLM 配置」启用 Mock 并保存：
+# 服务启动后（LLM_ENABLED=true LLM_PROVIDER=mock）：
 # 1. POST /api/v1/diagrams 提交 fixtures/network.graph.json        → v1 initial
 # 2. POST /api/v1/diagrams/{id}/patch/preview {"instruction":"新增两台服务器并连接核心交换机"}
 # 3. POST /api/v1/diagrams/{id}/patch/apply {confirmationToken, baseVersion} → v2 ai_patch

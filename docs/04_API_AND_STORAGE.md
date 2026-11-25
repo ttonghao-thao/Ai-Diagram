@@ -18,17 +18,6 @@
 | POST | `/diagrams/{id}/patch/preview` | 指令 → Patch + 影响分析，不提交 | 2 |
 | POST | `/diagrams/{id}/patch/apply` | 确认应用 Patch，创建新版本 | 2 |
 | GET | `/health` | 服务存活/依赖检查 | 1 |
-| GET / PATCH | `/settings/llm` | 读取与更新工作台的 LLM 配置 | V1.2 |
-
-### LLM 配置
-
-保持绘图 API、GraphDocument、GraphPatch 及历史图纸版本契约。新增的 LLM 设置表随服务启动创建。已有部署首次启动时导入旧的 `LLM_*` 值，之后新请求使用 SQLite 中的门户配置。
-
-`GET /settings/llm` 返回 `version`、`enabled`、`provider`、`baseUrl`、`model`、`timeoutSeconds`、`maxRetries`、`reasoningEffort`、`privateEndpoint` 和 `apiKey`。已保存的 `apiKey` 返回固定的 `****`，空密钥返回空字符串。
-
-`PATCH /settings/llm` 携带 `baseVersion` 和待更新字段，返回保存后的配置。省略 `apiKey`、传空字符串或 `****` 时保留当前地址的密钥，传 `null` 时清除，传新值时替换。更换服务地址时需要填写该地址的密钥才能携带鉴权。配置版本过期时返回 `409 VERSION_CONFLICT`。
-
-文本解析和 AI 修改在请求开始时读取配置快照。保存后进入的新请求使用新快照，进行中的请求沿用创建时的设置。
 
 ## 2. 关键请求示例
 

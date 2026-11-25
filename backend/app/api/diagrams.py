@@ -127,16 +127,14 @@ def _graph_issues_payload(doc: GraphDocument) -> Dict[str, Any]:
 
 
 @router.get("/health")
-def health(request: Request, response: Response) -> Dict[str, Any]:
+async def health(request: Request) -> Dict[str, Any]:
     state = _get_state(request)
-    settings = state.llm_settings.current().options
-    response.headers["Cache-Control"] = "no-store"
     return ok(request, {
         "status": "ok",
         "rendererAvailable": state.renderer.available(),
         "llm": {
-            "enabled": settings.enabled,
-            "provider": settings.provider if settings.enabled else None,
+            "enabled": state.settings.llm_enabled,
+            "provider": state.settings.llm_provider if state.settings.llm_enabled else None,
         },
         "time": utc_now(),
     })
@@ -420,20 +418,19 @@ async def parse_text(request: Request, body: ParseRequest) -> Dict[str, Any]:
     """Text -> GraphDocument draft via the configured LLM; nothing is stored."""
     state = _get_state(request)
     started = time.time()
-    settings = state.llm_settings.runtime_settings()
-    adapter = state.llm_adapter_factory(settings)
+    adapter = state.llm_adapter_factory(state.settings)
     provider = adapter.name
     try:
         doc = await adapter.parse_graph(body.text, body.diagramType)
     except ApiException as exc:
         state.db.record_ai_job(
-            request_type="parse_graph", provider=provider, model=settings.llm_model or None,
+            request_type="parse_graph", provider=provider, model=state.settings.llm_model or None,
             status="error", error_code=exc.code,
             duration_ms=int((time.time() - started) * 1000),
         )
         raise
     state.db.record_ai_job(
-        request_type="parse_graph", provider=provider, model=settings.llm_model or None,
+        request_type="parse_graph", provider=provider, model=state.settings.llm_model or None,
         status="ok", error_code=None,
         duration_ms=int((time.time() - started) * 1000),
     )

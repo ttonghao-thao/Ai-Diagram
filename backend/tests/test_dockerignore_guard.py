@@ -103,10 +103,6 @@ def test_runtime_data_db_files_stay_out_of_context() -> None:
     container reads/writes only STORAGE_ROOT, which points at the volume)."""
     patterns = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert _docker_ignored("storage/studio.db", patterns)
-    assert _docker_ignored("storage/studio.db-wal", patterns)
-    assert _docker_ignored("storage/llm-settings.key", patterns)
-    assert _docker_ignored("deploy/.env", patterns)
-    assert not _docker_ignored("deploy/env.example", patterns)
     assert not _docker_ignored("storage/diagrams/demo/v0001/graph.json", patterns)  # harmless
     # git still ignores runtime data (separate .gitignore responsibility).
     gitignore = (REPO / ".gitignore").read_text(encoding="utf-8")

@@ -32,10 +32,10 @@ npm --prefix renderer ci
 npm --prefix renderer run build
 npm --prefix frontend ci
 npm --prefix frontend run build
-.venv/bin/python -m uvicorn app.main:app --app-dir backend
+LLM_ENABLED=true LLM_PROVIDER=mock .venv/bin/python -m uvicorn app.main:app --app-dir backend
 ```
 
-访问 `http://127.0.0.1:8000/`。在导航栏「LLM 配置」选择 Mock 或 OpenAI-compatible，启用后点击「保存并生效」。API key 保存后显示为 `****`。部署与升级步骤见 [部署文档](docs/09_DEPLOYMENT.md)。
+访问 `http://127.0.0.1:8000/`。真实 LLM 配置见 [deploy/env.example](deploy/env.example)。受控部署的 Docker Compose 配置见 [docs/09_DEPLOYMENT.md](docs/09_DEPLOYMENT.md)。
 
 ```bash
 .venv/bin/python scripts/validate_fixtures.py
