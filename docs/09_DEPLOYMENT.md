@@ -6,7 +6,7 @@
 
 ```bash
 git clone https://github.com/ttonghao-thao/Ai-Diagram.git && cd Ai-Diagram/deploy
-cp env.example .env          # 按需填写；默认 LLM_ENABLED=false 即可完整使用 JSON 生成
+cp env.example .env          # 新部署的运行限额，模型配置在门户填写
 docker compose up --build
 curl http://127.0.0.1:8000/health   # {"status":"ok","rendererAvailable":true}
 ```
@@ -25,18 +25,25 @@ git clone https://github.com/ttonghao-thao/Ai-Diagram.git && cd Ai-Diagram
 (cd renderer && npm install && npm run build)     # 必须先构建
 (cd frontend && npm install && npm run build)     # 可选，不构建则仅 API
 (cd backend && pip install -r requirements.txt)
-LLM_ENABLED=false python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir backend
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir backend
 ```
 
 生产建议：`nohup`/systemd 托管 uvicorn；如需多 worker，注意预览令牌存于进程内存（见 docs/11），单 worker 最稳。
 
-## 3. 环境变量
+## 3. 配置
+
+### 门户 LLM 配置
+
+进入「LLM 配置」，选择服务、填写模型参数并保存。新部署默认关闭 LLM，Graph JSON 生成可直接使用。Mock 用于本地验证，OpenAI-compatible 需要服务地址和模型名称。API key 支持替换与清除，留空可沿用当前地址的密钥。保存立即影响新请求。
+
+升级现有部署时保留原 `.env` 启动一次，服务会在首次创建配置记录时导入原有的 `LLM_*`。随后从部署环境移除这些变量，后续变更都在门户完成。若旧配置无效，服务以安全默认值启动，可在门户补全。
+
+门户通过受控内网访问。通过反向代理提供门户时，使用 HTTPS 并将配置接口纳入现有管理访问边界。
+
+### 部署环境变量
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `LLM_ENABLED` / `LLM_PROVIDER` | false / mock | provider = mock 或 openai；关闭时 JSON 生成完整可用 |
-| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | 空 | OpenAI-compatible；key 只走环境变量 |
-| `LLM_TIMEOUT_SECONDS` / `LLM_MAX_RETRIES` | 60 / 2 | 模型调用超时与修复轮数 |
 | `RENDERER_CLI` | `renderer/dist/src/cli.js` | 渲染器 CLI 位置 |
 | `RENDERER_TIMEOUT_SECONDS` / `RENDERER_OUTPUT_LIMIT_BYTES` | 60 / 8MB | 子进程超时与输出上限 |
 | `ICONS_DIR` | `renderer/assets/icons` | 自定义 SVG 图标目录 |
@@ -49,7 +56,7 @@ LLM_ENABLED=false python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --a
 
 ## 4. 数据、备份与升级
 
-- 备份 = 备份 `STORAGE_ROOT` 整个目录（含 `studio.db` 与 `diagrams/<id>/vNNNN/` 快照）；版本文件只增不改，增量备份即可
+- 备份 `STORAGE_ROOT` 整个目录，包含 `studio.db`、`diagrams/<id>/vNNNN/` 以及保存过密钥时生成的 `llm-settings.key`。若 `DATABASE_PATH` 指向卷外，同步备份该数据库。加密文件需与数据库一起恢复，并保持文件权限为 `0600`。 [Fernet 文档](https://cryptography.io/en/latest/fernet/)
 - 升级代码：停服 → 替换代码 → 重建 renderer/frontend → 启动；历史版本不受影响
 - 回滚部署 = 回滚代码 + 恢复 `STORAGE_ROOT` 备份
 

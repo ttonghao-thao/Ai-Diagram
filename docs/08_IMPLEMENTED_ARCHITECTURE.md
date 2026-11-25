@@ -7,6 +7,7 @@
 - Desktop 回导比较图标、原生样式、位置、尺寸、折点与分组。原文件随版本保留，压缩页另存一份原始上传字节，供续编的 XML 采用无压缩页面。
 - `visual-state.json` 保存位置、尺寸与样式来源，`quality.json` 保存检查结果。两个文件与 Graph JSON、原始 XML 一同分阶段落盘并记录 SHA-256。历史版本按需读取。
 - 工作台的个人素材和偏好使用原 SQLite 实例中的附加表。素材从本地图标目录、官方索引或本地上传读取。官方索引、主题和原生样例预览随程序一起交付。
+- SQLite 的 `llm_settings` 保存工作台模型配置。文本解析、自然语言 Patch 和健康接口读取当前快照。密钥在写入前加密，门户只显示固定掩码。旧环境配置仅用于首次初始化。
 - 业务与网络继续使用同一套图模型。布局约束、样式和线路检查在 Renderer 内处理。人工样式、折点与未知对象的 XML 保护由原有 Backend 适配边界承担。
 
 下文保留 V1.1 架构记录。新接口和当前实现口径见 [V1.2 实施计划与决策](12_V1_2_IMPLEMENTATION.md)。
@@ -65,7 +66,7 @@ Windows draw.io Desktop 是**用户本地编辑器**，不属于服务端部署�
 
 ## 4. 安全机制（已实现）
 
-上传分块流式读取且超限即断；全文件 DOCTYPE/ENTITY 拒绝；解压后大小上限（防炸弹）；页数/单元数/文件大小限制；渲染子进程 argv 数组 + `shell=False` + 超时 + 输出上限；LLM key 仅环境变量注入；`ai_jobs` 只记元数据不记原文；下载流式并带 `X-Content-SHA256`。**未做**：身份鉴权（限受控内网使用，docs/04 §6）。
+上传分块流式读取且超限即断；全文件 DOCTYPE/ENTITY 拒绝；解压后大小上限（防炸弹）；页数/单元数/文件大小限制；渲染子进程 argv 数组 + `shell=False` + 超时 + 输出上限；LLM key 由门户写入并加密保存；`ai_jobs` 只记元数据不记原文；下载流式并带 `X-Content-SHA256`。**未做**：身份鉴权（限受控内网使用，docs/04 §6）。
 
 ## 5. API 一览（/api/v1）
 
@@ -79,3 +80,4 @@ Windows draw.io Desktop 是**用户本地编辑器**，不属于服务端部署�
 | POST | /diagrams/{id}/import/drawio、/import/commit | 回导预览 / 确认提交 |
 | POST | /diagrams/{id}/patch/preview、/patch/apply | Patch 预览 / 确认应用 |
 | GET | /health、/api/v1/health | 存活与依赖检查 |
+| GET / PATCH | /api/v1/settings/llm | 读取掩码配置及在线保存 |

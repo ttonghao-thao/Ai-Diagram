@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type Quality, type Theme } from './api';
+import { LlmSettingsPanel } from './components/LlmSettingsPanel';
 import { Materials, Themes } from './components/Materials';
 import { QualityPanel } from './components/QualityPanel';
 import { SAMPLE_ENTERPRISE_NETWORK } from './samples/enterpriseNetwork';
@@ -73,7 +74,7 @@ function ErrorBox({ err }: { err: ApiError | null }) {
 interface DiagramInfo { id: string; name: string; diagramType: string; currentVersion: number; updatedAt: string }
 
 export default function App() {
-  const [tab, setTab] = useState<'generate' | 'parse' | 'validate' | 'versions' | 'import' | 'patch' | 'materials' | 'themes'>('generate');
+  const [tab, setTab] = useState<'generate' | 'parse' | 'validate' | 'versions' | 'import' | 'patch' | 'materials' | 'themes' | 'llm'>('generate');
   const [health, setHealth] = useState<{ rendererAvailable: boolean; llm: { enabled: boolean; provider: string | null } } | null>(null);
 
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -96,7 +97,7 @@ export default function App() {
       </header>
       <nav>
         {([['generate', '生成图纸'], ['parse', '文本解析'], ['validate', '校验 Graph'], ['versions', '图纸与版本'],
-          ['import', '导入回导'], ['patch', 'AI 修改'], ['themes', '主题'], ['materials', '素材']] as const).map(
+          ['import', '导入回导'], ['patch', 'AI 修改'], ['themes', '主题'], ['materials', '素材'], ['llm', 'LLM 配置']] as const).map(
           ([key, label]) => (
             <button key={key} aria-current={tab === key ? "page" : undefined} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
               {label}
@@ -113,6 +114,7 @@ export default function App() {
         {tab === 'patch' && <PatchTab themes={themes} />}
         {tab === 'themes' && <Themes themes={themes} />}
         {tab === 'materials' && <Materials />}
+        {tab === 'llm' && <LlmSettingsPanel onSaved={refreshHealth} />}
       </main>
       <footer>使用 Windows draw.io Desktop 编辑下载的图纸，再上传新版本。</footer>
     </div>
@@ -267,7 +269,7 @@ function ParseTab() {
   return (
     <section>
       <h2>文本 → Graph 草稿（不写入版本）</h2>
-      <p className="hint">需启用 LLM（LLM_ENABLED=true，provider=mock 或 OpenAI-compatible）。</p>
+      <p className="hint">请在「LLM 配置」中选择并启用模型服务。</p>
       <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} />
       <p>
         <select value={diagramType} onChange={(e) => setDiagramType(e.target.value)}>

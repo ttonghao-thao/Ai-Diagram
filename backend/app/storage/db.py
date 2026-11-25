@@ -53,6 +53,12 @@ CREATE TABLE IF NOT EXISTS ai_jobs (
   duration_ms INTEGER,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS llm_settings (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  version INTEGER NOT NULL,
+  options_json TEXT NOT NULL,
+  api_key_ciphertext BLOB
+);
 CREATE INDEX IF NOT EXISTS idx_versions_diagram ON diagram_versions(diagram_id, version);
 """
 

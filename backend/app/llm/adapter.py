@@ -459,7 +459,7 @@ class OpenAICompatibleAdapter:
         private_endpoint: bool = False,
     ) -> None:
         if not base_url:
-            raise ApiException(ErrorCode.LLM_UNAVAILABLE, "LLM_BASE_URL is not configured")
+            raise ApiException(ErrorCode.LLM_UNAVAILABLE, "未配置 OpenAI-compatible 服务地址")
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
@@ -622,11 +622,11 @@ class OpenAICompatibleAdapter:
 
 
 def build_adapter(settings) -> LlmAdapter:
-    """Factory honoring LLM_ENABLED / LLM_PROVIDER; raises when unusable."""
+    """Build an adapter from the request's configuration snapshot."""
     if not settings.llm_enabled:
         raise ApiException(
             ErrorCode.LLM_UNAVAILABLE,
-            "LLM is disabled (LLM_ENABLED=false); JSON-based generation remains available",
+            "LLM 已关闭，可在门户 LLM 配置中启用",
         )
     if settings.llm_provider == "mock":
         return MockLlmAdapter()

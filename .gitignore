@@ -15,6 +15,8 @@ __pycache__/
 /storage/
 /data/
 *.db
+llm-settings.key
+.llm-*.key
 
 # env / local
 .env

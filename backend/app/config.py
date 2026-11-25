@@ -1,9 +1,4 @@
-"""Application settings loaded from environment variables (deploy/env.example).
-
-Secrets are injected via environment only; nothing is logged verbatim
-(docs/04 section 6). Paths are resolved relative to the repository root so
-both `uvicorn app.main:app` (from backend/) and Docker work.
-"""
+"""Deployment settings and legacy LLM bootstrap values."""
 from __future__ import annotations
 
 import os
@@ -35,10 +30,12 @@ def _env_str(name: str, default: str) -> str:
 
 @dataclass
 class Settings:
+    # Portal requests use the saved settings snapshot. These values seed it once
+    # on upgrade and also support the standalone model verification script.
     llm_enabled: bool = field(default_factory=lambda: _env_bool("LLM_ENABLED", False))
     llm_provider: str = field(default_factory=lambda: _env_str("LLM_PROVIDER", "mock").lower())
     llm_base_url: str = field(default_factory=lambda: _env_str("LLM_BASE_URL", ""))
-    llm_api_key: str = field(default_factory=lambda: _env_str("LLM_API_KEY", ""))
+    llm_api_key: str = field(default_factory=lambda: _env_str("LLM_API_KEY", ""), repr=False)
     llm_model: str = field(default_factory=lambda: _env_str("LLM_MODEL", ""))
     llm_timeout_seconds: int = field(default_factory=lambda: _env_int("LLM_TIMEOUT_SECONDS", 60))
     llm_reasoning_effort: str = field(default_factory=lambda: _env_str("LLM_REASONING_EFFORT", ""))

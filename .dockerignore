@@ -17,7 +17,9 @@
 **/dist
 **/__pycache__
 **/.pytest_cache
-*.db
-.env
+**/*.db
+**/*.db-*
+**/*.key
+**/.env
 *.local
 .DS_Store

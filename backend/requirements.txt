@@ -9,3 +9,4 @@ pydantic>=2.7,<3
 pytest>=8,<9
 pytest-asyncio>=0.23,<0.24
 jsonschema>=4.20
+cryptography>=50.0.2,<51

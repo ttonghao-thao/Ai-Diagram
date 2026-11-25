@@ -58,6 +58,11 @@ button[aria-pressed="true"] { background: #d8ebfc; border-color: #78a9cd; }
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .theme-grid dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 13px; }
 .theme-grid dd { margin: 0; }
+.llm-settings { max-width: 700px; }
+.llm-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.llm-settings .option-grid input { width: 100%; }
+.llm-settings .option-grid input[type="checkbox"] { width: auto; }
+.llm-settings input::placeholder { opacity: 1; }
 @media (max-width: 680px) {
   .material-grid { grid-template-columns: 1fr; }
   .layout { padding: 12px; }
