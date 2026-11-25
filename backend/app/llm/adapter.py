@@ -30,6 +30,11 @@ from app.llm.prompts import (
     propose_patch_user_prompt,
     repair_feedback_prompt,
 )
+from app.llm.topology_text import (
+    ALL_MEMBERS, ALTERNATIVE, MAX_EDGES, MAX_LABEL_LENGTH, MAX_NODES, NEGATIVE, NUMBERED_SWITCH,
+    NUMBER_WORDS, QUALIFIED_SWITCH, counted_device_type, device_quantity, name_key,
+)
+from app.llm.topology_text import safe_id as _safe_id
 
 
 class LlmAdapter(Protocol):
@@ -50,7 +55,7 @@ _KIND_KEYWORDS: List[tuple] = [
     (re.compile(r"防火墙|firewall|waf", re.I), "firewall"),
     (re.compile(r"虚拟机|虚机|vm\b", re.I), "vm"),
     (re.compile(r"数据库|内容库|数据库集群|database|db\b", re.I), "database"),
-    (re.compile(r"云平台|云端|公有云|私有云|外部网络|互联网|云\b|cloud|internet", re.I), "cloud"),
+    (re.compile(r"云平台|云端|公有云|私有云|外部网络|互联网|公网|外网|云\b|cloud|internet", re.I), "cloud"),
     (re.compile(r"终端|客户端|工作站|台式机|笔记本|pc\b|client|terminal", re.I), "client"),
     (re.compile(r"服务器|主机|server|host", re.I), "server"),
     (re.compile(r"服务|平台|系统|模块|service|platform|system", re.I), "service"),
@@ -59,20 +64,19 @@ _KIND_KEYWORDS: List[tuple] = [
 _PHYSICAL_KINDS = {"switch", "router", "firewall", "server", "vm", "cloud", "client", "database"}
 
 _CONNECT_VERBS = re.compile(
-    r"(读写|调用|访问|请求|连接|接入|接到|链接|连着|connected?\s+to|links?\s+to|attach(es|ed)?\s+to)"
+    r"读写|调用|访问|请求|连接|接入|接到|链接|连着|connected?\s+to|links?\s+to|attach(?:es|ed)?\s+to",
+)
+_NETWORK_CONNECT_VERBS = re.compile(
+    r"连接到|连到|连至|直连|" + _CONNECT_VERBS.pattern + r"|connect\s+to|连|通(?=\s*(?:公网|外网|互联网))", re.I,
 )
 
 _CLAUSE_SPLIT = re.compile(r"[。；;！!？?\n\r]+")
+_ENDPOINT_SEPARATOR = re.compile(r"[、,，和]|以及|跟|与")
 
 # NOTE: \b is unreliable here because Python treats CJK characters as \w, so
 # an IP glued to Chinese text ("使用192.0.2.0/24") has no boundary. Explicit
 # lookarounds only exclude adjacent digits/dots instead.
 _IP_PATTERN = re.compile(r"(?<![\d.])\d{1,3}(\.\d{1,3}){3}(?![\d.])")
-
-_NUMBER_WORDS = {
-    "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
-}
-
 
 def _infer_kind(label: str) -> tuple[str, bool]:
     """Returns (kind, guessed). Order matters: more specific patterns first."""
@@ -82,18 +86,57 @@ def _infer_kind(label: str) -> tuple[str, bool]:
     return "generic", True
 
 
-def _safe_id(base: str, used: set) -> str:
-    """Derive a schema-valid id from a label; fall back to sequential ids."""
-    ascii_id = re.sub(r"[^A-Za-z0-9_-]", "", base.replace(" ", "_"))
-    ascii_id = ascii_id.lstrip("_-0123456789")
-    candidate = ascii_id[:63] if ascii_id else ""
-    final = candidate or "item"
-    seq = 1
-    while final in used:
-        seq += 1
-        final = f"{(candidate or 'item')}_{seq}"
-    used.add(final)
-    return final
+def _network_clauses(text: str) -> list[str]:
+    clauses = []
+    for section in _CLAUSE_SPLIT.split(text):
+        pieces = [part.strip() for part in re.split(r"[，,]", section) if part.strip()]
+        if pieces:
+            clauses.append(pieces[0])
+        for part in pieces[1:]:
+            quantity = device_quantity(part)
+            if (NEGATIVE.search(part) or any(match.start() for match in _NETWORK_CONNECT_VERBS.finditer(part))
+                    or (quantity and counted_device_type(quantity[1]) and not _NETWORK_CONNECT_VERBS.search(clauses[-1]))):
+                clauses.append(part)
+            else:
+                clauses[-1] += "，" + part
+    return clauses
+
+
+def _network_verb(clause: str) -> re.Match | None:
+    match = _NETWORK_CONNECT_VERBS.search(clause)
+    if match and match.start() == 0:
+        return _NETWORK_CONNECT_VERBS.search(clause, match.end()) or match
+    return match
+
+
+def _explicit_counted_network(text: str) -> bool:
+    """Accept recovery only when every clause uses a recognized device name."""
+    has_count = False
+    for clause in _network_clauses(text):
+        if NEGATIVE.search(clause) or ALTERNATIVE.search(clause):
+            return False
+        verb = _network_verb(clause)
+        if verb:
+            if not clause[:verb.start()].strip() or not clause[verb.end():].strip():
+                return False
+            sides = [ALL_MEMBERS.sub("", clause[:verb.start()]), clause[verb.end():]]
+            endpoints = [item.strip() for side in sides for item in _ENDPOINT_SEPARATOR.split(side) if item.strip()]
+        else:
+            endpoints = [clause]
+        for endpoint in endpoints:
+            quantity = device_quantity(endpoint)
+            if quantity:
+                count, endpoint = quantity
+                if not 1 <= count <= MAX_NODES:
+                    return False
+                has_count |= count > 1
+            elif not verb:
+                return False
+            base = re.sub(r"\s*\d+$", "", endpoint)
+            if not (counted_device_type(base) or QUALIFIED_SWITCH.fullmatch(endpoint)
+                    or name_key(base) in {"公网", "外网", "互联网"}):
+                return False
+    return has_count
 
 
 class MockLlmAdapter:
@@ -108,50 +151,89 @@ class MockLlmAdapter:
         used_ids: set = set()
         label_to_id: Dict[str, str] = {}
 
-        clauses = [c.strip() for c in _CLAUSE_SPLIT.split(text) if c.strip()]
-        node_seq = 0
+        network = diagram_type == "network_topology"
+        clauses = _network_clauses(text) if network else [c.strip() for c in _CLAUSE_SPLIT.split(text) if c.strip()]
+        physical_kinds = _PHYSICAL_KINDS | {"generic"} if network else _PHYSICAL_KINDS
+        kind_by_id = {}
+        switch_aliases: dict[str, dict[str, str]] = {}
+        explicit_switches = set()
+        if network:
+            for clause in clauses:
+                shorts = {name_key(match[0]) for match in NUMBERED_SWITCH.finditer(QUALIFIED_SWITCH.sub("", clause))}
+                for match in QUALIFIED_SWITCH.finditer(clause):
+                    short = name_key(match[1])
+                    switch_aliases.setdefault(short, {})[name_key(match[0])] = match[0]
+                    if short in shorts:
+                        explicit_switches.add(short)
 
         def ensure_node(label: str) -> str:
-            nonlocal node_seq
-            key = label.strip()
+            reference = name_key(label)
+            aliases = switch_aliases.get(reference, {})
+            label = next(iter(aliases.values())) if len(aliases) == 1 and reference not in explicit_switches else label.strip()
+            key = name_key(label) if network else label
             if key in label_to_id:
                 return label_to_id[key]
-            node_seq += 1
-            kind, guessed = _infer_kind(key)
-            nid = _safe_id(key, used_ids)
+            kind, guessed = _infer_kind(label)
+            nid = _safe_id(label, used_ids)
             props: Dict[str, Any] = {}
             if guessed or kind == "generic":
-                props["deviceType"] = key
+                props["deviceType"] = re.sub(r" \d{2,}$", "", label) if network else label
                 warnings.append(GraphWarning(
                     code="DEVICE_TYPE_GUESSED",
-                    message=f'未识别设备类型"{key}"，已按 generic 记录并保留原始类型',
+                    message=f'未识别设备类型"{props["deviceType"]}"，已按 generic 记录并保留原始类型',
                     requiresConfirmation=False,
                 ))
-            nodes.append({"id": nid, "label": key, "kind": kind, "properties": props, "origin": "ai"})
+            nodes.append({"id": nid, "label": label, "kind": kind, "properties": props, "origin": "ai"})
             label_to_id[key] = nid
+            kind_by_id[nid] = kind
             return nid
 
         def expand_count(label: str) -> List[str]:
             """Expand explicit counts ("三台服务器" -> 服务器 01..03)."""
-            m = re.match(r"^([一二两三四五六七八九十\d]+)\s*(个|台|套|组|名)?\s*(.+)$", label)
-            if not m:
-                return [label]
-            count = _NUMBER_WORDS.get(m.group(1), None)
-            if count is None and m.group(1).isdigit():
-                count = int(m.group(1))
-            if not count or not (1 <= count <= 20):
-                return [label]
-            base_label = m.group(3).strip()
-            if count == 1:
-                return [base_label]
-            return [f"{base_label} {i:02d}" for i in range(1, count + 1)]
+            quantity = device_quantity(label) if network else None
+            if quantity:
+                count, base = quantity
+                suffix_width = 1 + max(2, len(str(count))) if count > 1 else 0
+                if not 1 <= count <= MAX_NODES or len(base) + suffix_width > MAX_LABEL_LENGTH:
+                    warnings.append(GraphWarning(code="AMBIGUOUS_DEVICE_COUNT",
+                                                 message="设备数量或名称超出图模型限制，请调整描述。",
+                                                 requiresConfirmation=True))
+                    return []
+            else:
+                match = re.match(r"^([一二两三四五六七八九十\d]+)\s*(个|台|套|组|名)?\s*(.+)$", label)
+                if not match or (network and not (match[2] or re.match(r"^\d+\s+[a-zA-Z]", label))):
+                    return [label]
+                count = NUMBER_WORDS.get(match[1])
+                if count is None and match[1].isdecimal() and len(match[1]) <= 4:
+                    count = int(match[1])
+                if not count or not 1 <= count <= 20:
+                    return [label]
+                base = match[3].strip()
+            return [base] if count == 1 else [f"{base} {i:02d}" for i in range(1, count + 1)]
 
         for clause in clauses:
-            match = _CONNECT_VERBS.search(clause)
-            if not match:
+            if network and NEGATIVE.search(clause):
                 continue
-            verb = match.group(1)
+            if network and ALTERNATIVE.search(clause):
+                warnings.append(GraphWarning(code="AMBIGUOUS_RELATION", message="描述含有备选设备或关系，请明确。",
+                                             requiresConfirmation=True))
+                continue
+            match = _network_verb(clause) if network else _CONNECT_VERBS.search(clause)
+            if not match:
+                quantity = device_quantity(clause) if network else None
+                if quantity and counted_device_type(quantity[1]):
+                    labels = expand_count(clause)
+                    if len(nodes) + len({name_key(label) for label in labels} - label_to_id.keys()) <= MAX_NODES:
+                        for label in labels:
+                            ensure_node(label)
+                    else:
+                        warnings.append(GraphWarning(code="AMBIGUOUS_DEVICE_COUNT", message="设备数量超出图模型限制。",
+                                                     requiresConfirmation=True))
+                continue
+            verb = match.group(0)
             subject = clause[: match.start()].strip(" ，,。和与")
+            if network:
+                subject = ALL_MEMBERS.sub("", subject).strip()
             target_part = clause[match.end():].strip(" ，,。和与")
             if not subject or not target_part:
                 warnings.append(GraphWarning(
@@ -161,7 +243,7 @@ class MockLlmAdapter:
                     requiresConfirmation=True,
                 ))
                 continue
-            targets = [t.strip() for t in re.split(r"[、,，和]|以及|跟|与", target_part) if t.strip()]
+            targets = [t.strip() for t in _ENDPOINT_SEPARATOR.split(target_part) if t.strip()]
             # IP fragments are qualifiers, never device names: drop them with
             # an explicit warning instead of creating bogus nodes.
             usable: List[str] = []
@@ -174,11 +256,25 @@ class MockLlmAdapter:
                     ))
                     continue
                 usable.append(target)
-            subjects = expand_count(subject)
+            named_subjects = _ENDPOINT_SEPARATOR.split(subject) if network else [subject]
+            subjects = [label for value in named_subjects if value.strip() for label in expand_count(value.strip())]
             expanded: List[str] = []
             for target in usable:
                 expanded.extend(expand_count(target))
             if not expanded or not subjects:
+                continue
+            if network and (
+                len(nodes) + len({name_key(label) for label in subjects + expanded} - label_to_id.keys()) > MAX_NODES
+                or len(edges) + len(subjects) * len(expanded) > MAX_EDGES
+            ):
+                warnings.append(GraphWarning(code="AMBIGUOUS_DEVICE_COUNT", message="展开后的设备或连线超出图模型限制。",
+                                             requiresConfirmation=True))
+                continue
+            if network and len(subjects) > 1 and len(expanded) > 1:
+                for label in subjects + expanded:
+                    ensure_node(label)
+                warnings.append(GraphWarning(code="AMBIGUOUS_RELATION", message="两端都有多个设备，请明确每条连线的端点。",
+                                             requiresConfirmation=True))
                 continue
             for src_label in subjects:
                 src_id = ensure_node(src_label)
@@ -186,22 +282,22 @@ class MockLlmAdapter:
                     tgt_id = ensure_node(target)
                     if src_id == tgt_id:
                         continue
-                    src_kind = next(n["kind"] for n in nodes if n["id"] == src_id)
-                    tgt_kind = next(n["kind"] for n in nodes if n["id"] == tgt_id)
+                    src_kind = kind_by_id[src_id]
+                    tgt_kind = kind_by_id[tgt_id]
                     # Verb-aware relation typing (docs/02: strict separation of
                     # physical links vs access/calls vs data flows).
                     if re.search(r"读写", verb):
                         kind, direction = "dataflow", "bidirectional"
-                    elif re.search(r"调用|访问|请求", verb):
+                    elif re.search(r"调用|访问|请求|通", verb):
                         kind, direction = "logical", "forward"
                     elif (
-                        src_kind in _PHYSICAL_KINDS and tgt_kind in _PHYSICAL_KINDS
+                        src_kind in physical_kinds and tgt_kind in physical_kinds
                         and "service" not in (src_kind, tgt_kind)
                     ):
                         kind, direction = "physical", "undirected"
                     else:
                         kind, direction = "logical", "forward"
-                    edge_id = f"link_{len(edges) + 1}"
+                    edge_id = _safe_id(f"link_{len(edges) + 1}", used_ids)
                     edges.append({
                         "id": edge_id, "source": src_id, "target": tgt_id,
                         "kind": kind, "direction": direction,
@@ -267,7 +363,7 @@ class MockLlmAdapter:
 
         # 1) add nodes (+ optional connection)
         for m in re.finditer(r"(?:新增|添加|加)\s*([一二两三四五六七八九十\d]+)\s*(台|个|套|组)?\s*([^\s，,。；;]+?)(?:并连接|连接到|连接)([^\s，,。；;]+)", text):
-            count = _NUMBER_WORDS.get(m.group(1), None)
+            count = NUMBER_WORDS.get(m.group(1), None)
             if count is None and m.group(1).isdigit():
                 count = int(m.group(1))
             if not count or not (1 <= count <= 20):
@@ -552,6 +648,14 @@ class OpenAICompatibleAdapter:
                                attempt + 1, self.max_retries + 1,
                                "; ".join(last_errors[:5]))
                 feedback = repair_feedback_prompt(last_errors)
+        if diagram_type == "network_topology" and _explicit_counted_network(text):
+            doc = await MockLlmAdapter().parse_graph(text, diagram_type)
+            if not any(warning.requiresConfirmation for warning in doc.warnings):
+                doc.warnings.append(GraphWarning(
+                    code="LLM_DRAFT_RECOVERED", message="模型未返回可用草稿，已按原文明确的设备数量和连接生成。",
+                    requiresConfirmation=False,
+                ))
+                return doc
         raise ApiException(
             ErrorCode.LLM_INVALID_OUTPUT,
             f"LLM output failed schema validation after {self.max_retries + 1} attempts",

@@ -435,9 +435,9 @@ async def parse_text(request: Request, body: ParseRequest) -> Dict[str, Any]:
         duration_ms=int((time.time() - started) * 1000),
     )
     doc.schemaVersion = "1.1"
-    normalize_devices(doc)
     if provider != "mock":
         review_draft(body.text, doc)
+    normalize_devices(doc)
     if body.appearance:
         prior = doc.appearance.model_dump(exclude_none=True) if doc.appearance else {}
         doc.appearance = Appearance.model_validate(prior | body.appearance.model_dump(exclude_none=True))

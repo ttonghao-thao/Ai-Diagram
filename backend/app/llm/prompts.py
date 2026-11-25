@@ -39,6 +39,7 @@ PARSE_GRAPH_SYSTEM_PROMPT = """你是一个严格的网络/业务拓扑结构化
 12. 仅从明确描述提取布局约束 sameRank、order、align、relativePosition、rank、preservePosition，使用实际节点 ID，不能编造坐标、宽高、线路折点、原生 Shape ID、style、XML、厂商或型号。
 13. 主题与连线偏好用 appearance，允许主题：{themes}。标准设备子类型：{devices}。
 14. 物理链路的隐藏箭头或标签是视觉配置，不改变已有实体、方向和连接事实。
+15. 明确的设备数量必须逐台输出。例如“三台服务器连交换机1”输出服务器 01、02、03 三个 kind="server" 节点，各有一条到交换机1的物理边。“两台设备”输出设备 01、02 两个 kind="generic" 节点，保留原始类型“设备”。“交换机1”中的数字是编号。连接两端都有多台且未说明配对时，使用 AMBIGUOUS_RELATION 警告。“通公网”表达可达性，使用 logical 边。
 
 JSON Schema（GraphDocument 1.1）：
 {schema}

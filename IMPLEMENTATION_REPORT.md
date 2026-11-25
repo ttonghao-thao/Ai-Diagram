@@ -633,3 +633,28 @@ Ollama 0.40.11，`qwen3.5:2b`，模型摘要前缀 `0689d44085e0`。经本地 Op
 ### 决策与待验收
 
 采用工作台级个人素材库、候选正交路径和受保护对象优先的布局策略。组合图形进入导入及导出流程，放置为单一设备节点的验收后续跟踪。Windows draw.io Desktop 及目标服务器 Docker Compose 实机验收均未验证。实现和待跟踪口径见 [V1.2 实施计划](docs/12_V1_2_IMPLEMENTATION.md) 与 [遗留问题](docs/11_OPEN_ISSUES.md)。
+
+## 18. 自然语言拓扑中的设备数量
+
+复现文本为「三台服务器连上联交换机1，两台设备连上联交换机2，交换机1和交换机2连防火墙，防火墙通公网」。用与截图相同结构的模型草稿复现 6 个节点和 5 条边被接收，两个数量短语都落成单个 `generic` 节点。Mock 使用同一原句返回 `LLM_INVALID_OUTPUT`。
+
+| 阶段 | 核验目标 |
+|---|---|
+| 1 原文与草稿核对 | 找出明确的数量和唯一对端，展开独立节点及原文支持的连接，须确认的关系保留警告 |
+| 2 解析与类型 | OpenAI-compatible 和 Mock 走各自正常入口。服务器匹配内置素材，无子类型的设备保持 `generic` |
+| 3 生成与导出 | 复测原句的 9 个节点、8 条边和 XML 引用，再跑后端和前端构建回归 |
+
+修改范围为自然语言草稿处理，沿用 GraphDocument、编辑器布局和 REST 契约。
+
+### 实现
+
+- `backend/app/llm/topology_text.py`、`adapter.py` 与 `prompts.py` 识别明确的设备数量。Mock 支持原句的短写连接、逗号分句及交换机编号简称。模型经有限次修复仍未返回合法草稿时，完整明确的设备清单和连接可用现有规则生成，提示 `LLM_DRAFT_RECOVERED`。
+- `backend/app/llm/draft_review.py` 与 `backend/app/api/diagrams.py` 按原文展开被合并的节点、补齐明确的设备和连接，再匹配现有图标。已编号的设备保留原 ID 与名称。独立数量声明仅生成节点，同名批次、备选关系或不能确定配对时保留待核对提示。
+- `backend/tests/test_counted_topology.py` 覆盖截图原句、短名称引用、数量和端点歧义、未补造端口、合法模型草稿与失败回退。导出断言覆盖真实 mxCell、端点引用和服务器原生 stencil。
+
+### 验证
+
+- `.venv/bin/python -m pytest backend/tests` 通过 126 项。截图原句在 Mock 和模拟合并草稿的 OpenAI-compatible 路径均通过解析、创建、下载，得到 9 个节点、8 条边。三台服务器分别使用 Cisco 服务器图标，两台类型未指定的设备分别作为 `generic`。
+- `npm --prefix frontend run build` 与 `.venv/bin/python scripts/validate_fixtures.py` 通过。
+- 通过 `ollama serve` 在临时回环端口使用本地 `qwen3.5:2b`，在隔离 SQLite 与文件目录通过工作台 API 复测原句。模型两次输出均为不完整 JSON，回退后解析、创建和导出通过。XML 有 9 个节点和 8 条连线，SHA-256 为 `a08dbc7ab1871818aeb5ce860508e5cd1e9d45a0d70a2be69614747b175ae287`。
+- 待验收为用户线上模型网关、部署后的门户和 Windows draw.io Desktop 手工编辑。
