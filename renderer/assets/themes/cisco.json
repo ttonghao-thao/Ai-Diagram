@@ -8,7 +8,7 @@
     "switch": "cisco.misc.route_switch_processor",
     "router": "cisco.routers.router",
     "firewall": "cisco.security.ios_firewall",
-    "server": "cisco.servers.server_with_router",
+    "server": "cisco.servers.fileserver",
     "cloud": "cisco.storage.cloud",
     "vm": "cisco.servers.software_based_server",
     "database": "cisco.storage.relational_database",

@@ -37,6 +37,35 @@ def apply(client, change, version=1):
                             json={"baseVersion": version, "confirmationToken": change["confirmationToken"]}))
 
 
+def test_multi_site_template_exports_and_reimports_native_topology(app_client):
+    client, _ = app_client
+    graph = load_fixture("templates/multi_site_network.graph.json")
+    created = create(client, graph)
+    counts = created["quality"]["counts"]
+    assert created["quality"]["ok"] and (counts["nodes"], counts["edges"], counts["errors"]) == (28, 48, 0)
+    path = "/api/v1/diagrams/" + graph["diagramId"]
+    artifact = client.get(path + "/export/drawio")
+    assert artifact.status_code == 200
+    _, xml = cells(artifact.content)
+    for group in graph["groups"]:
+        parent = "g_" + group["parentId"] if group.get("parentId") else "1"
+        assert xml["g_" + group["id"]].get("parent") == parent
+    for edge in graph["edges"]:
+        cell = xml["e_" + edge["id"]]
+        assert cell.get("edge") == "1"
+        assert (cell.get("source"), cell.get("target")) == ("n_" + edge["source"], "n_" + edge["target"])
+    assert parse_style(xml["n_platform_servers_a"].get("style"))["shape"] == "mxgraph.cisco.servers.fileserver"
+
+    imported = data(client.post(path + "/import/preview",
+                                files={"file": ("multi_site_network.drawio", artifact.content)},
+                                data={"baseVersion": 1}))
+    assert imported["quality"]["ok"] and imported["unknownCellCount"] == 0
+    assert all(not imported["diff"][key] for key in (
+        "nodeAdded", "nodeRemoved", "nodeKindChanged", "membershipChanged",
+        "groupAdded", "groupRemoved", "edgeAdded", "edgeRemoved", "edgeReconnected",
+    ))
+
+
 def test_t10_final_topology_places_new_node_right_of_peers(app_client):
     client, app = app_client
     first = create(client)
@@ -78,7 +107,7 @@ def test_t11_t12_explicit_shape_and_theme_modify_editable_xml(app_client):
     changed = preview(client, [{"op": "update_node", "id": "srv1", "changes": {
         "style": {"shapeId": "cisco.routers.router", "strokeColor": "#777777"},
     }}])
-    assert changed["diff"]["shapeChanged"] == [{"id": "srv1", "from": "cisco.servers.server_with_router",
+    assert changed["diff"]["shapeChanged"] == [{"id": "srv1", "from": "cisco.servers.fileserver",
                                               "to": "cisco.routers.router"}]
     apply(client, changed)
     updated = preview(client, [{"op": "update_theme", "id": "v12_network", "changes": {

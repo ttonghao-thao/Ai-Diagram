@@ -1,5 +1,5 @@
 {
-  "version": "2026-11.1",
+  "version": "2026-11.2",
   "upstream": {
     "repository": "https://github.com/jgraph/drawio-mcp",
     "commit": "b7941af5541ba45edb72d6db164302294bf6cb40",

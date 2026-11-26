@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError, type Quality, type Theme } from './api';
+import { DraftIcons, editableIconGraph } from './components/DraftIcons';
 import { Materials, Themes } from './components/Materials';
 import { QualityPanel } from './components/QualityPanel';
 import { SAMPLE_ENTERPRISE_NETWORK } from './samples/enterpriseNetwork';
+import MULTI_SITE_NETWORK from '../../fixtures/templates/multi_site_network.graph.json';
 
 /**
  * Phase 1 minimal admin console (docs/01 section 6): generate / parse /
@@ -127,9 +129,15 @@ const DRAWING_OPTIONS = [
   ['edgeArrowPolicy', '箭头', [['semantic', '按关系类型'], ['hidden', '全部隐藏']]],
 ] as const;
 
+function newDraftGraph<T extends { diagramId: string }>(graph: T): T {
+  const suffix = crypto.getRandomValues(new Uint32Array(2)).join('_');
+  const prefix = graph.diagramId.slice(0, 63 - suffix.length);
+  return { ...graph, diagramId: `${prefix}_${suffix}` };
+}
+
 function GenerateTab({ themes, llmEnabled }: { themes: Theme[]; llmEnabled: boolean }) {
   const [mode, setMode] = useState<'text' | 'json'>('text');
-  const [text, setText] = useState(JSON.stringify(SAMPLE_NETWORK, null, 2));
+  const [text, setText] = useState(() => JSON.stringify(newDraftGraph(MULTI_SITE_NETWORK), null, 2));
   const [description, setDescription] = useState('');
   const [diagramType, setDiagramType] = useState('network_topology');
   const [options, setOptions] = useState<Record<string, string>>({});
@@ -139,9 +147,11 @@ function GenerateTab({ themes, llmEnabled }: { themes: Theme[]; llmEnabled: bool
   const [result, setResult] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
   const usingText = mode === 'text' && llmEnabled;
+  const iconGraph = useMemo(() => editableIconGraph(usingText ? (draft?.schemaValid ? draft.graph : null) : text),
+    [draft, text, usingText]);
 
   const chooseSample = (sample: unknown) => {
-    setMode('json'); setText(JSON.stringify(sample, null, 2)); setDraft(null);
+    setMode('json'); setText(JSON.stringify(sample, null, 2)); setDraft(null); setErr(null); setResult(null);
   };
   const changeOption = (key: string, value: string) => {
     setOptions((current) => ({ ...current, [key]: value })); setDraft(null);
@@ -160,7 +170,7 @@ function GenerateTab({ themes, llmEnabled }: { themes: Theme[]; llmEnabled: bool
             ...(algorithm ? { algorithm } : {}), ...(direction ? { direction } : {}),
             appearance: { ...appearance, ...(!showGroups ? { showGroups: false } : {}) },
           });
-          parsed = data;
+          parsed = { ...data, graph: newDraftGraph(data.graph) };
           setDraft(parsed);
         }
         if (!parsed || previewOnly || !parsed.schemaValid || (parsed.documentWarnings ?? parsed.graph.warnings ?? [])
@@ -189,6 +199,7 @@ function GenerateTab({ themes, llmEnabled }: { themes: Theme[]; llmEnabled: bool
         <button onClick={() => chooseSample(SAMPLE_NETWORK)}>网络示例</button>
         <button onClick={() => chooseSample(SAMPLE_BUSINESS)}>业务示例</button>
         <button onClick={() => chooseSample(SAMPLE_ENTERPRISE_NETWORK)}>组网图模板</button>
+        <button disabled={busy} onClick={() => chooseSample(newDraftGraph(MULTI_SITE_NETWORK))}>三机房组网模板</button>
       </div>
       {usingText ? (
         <>
@@ -215,6 +226,11 @@ function GenerateTab({ themes, llmEnabled }: { themes: Theme[]; llmEnabled: bool
       ) : (
         <textarea aria-label="Graph JSON" rows={14} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
       )}
+      {iconGraph && <DraftIcons key={iconGraph.diagramId} graph={iconGraph} disabled={busy} onChange={(graph) => {
+        if (usingText) setDraft((current) => current && { ...current, graph });
+        else setText(JSON.stringify(graph, null, 2));
+        setResult(null);
+      }} />}
       <div className="toolbar">
         {usingText && <button disabled={busy || !description.trim()} onClick={() => submit(true)}>解析草稿</button>}
         <button className="primary" disabled={busy || usingText && !description.trim()} onClick={() => submit(false)}>

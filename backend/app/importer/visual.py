@@ -37,7 +37,7 @@ def visual_state(
     visual = {
         "themeId": (graph.appearance.themeId if graph.appearance else None) or graph.metadata.get("iconTheme")
         or ("cisco" if graph.diagramType == "network_topology" else "business"),
-        "catalogVersion": "2026-11.1",
+        "catalogVersion": "2026-11.2",
         "nodes": {}, "groups": {}, "edges": {},
     }
     for name in ("nodes", "groups", "edges"):

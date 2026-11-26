@@ -54,6 +54,10 @@ button[aria-pressed="true"] { background: #d8ebfc; border-color: #78a9cd; }
 .material-details img { display: block; object-fit: contain; margin-top: 12px; }
 .text-button { border: 0; padding: 0; color: #185f9e; background: transparent; font-weight: 600; text-align: left; }
 .material-import { margin: 12px 0; }
+.draft-icons { margin: 12px 0; }
+.draft-icons fieldset { min-width: 0; border: 1px solid #d5dee6; border-radius: 8px; margin: 8px 0; }
+.draft-icons select { max-width: 100%; }
+.draft-icons img { display: block; object-fit: contain; margin-top: 8px; }
 .pagination { justify-content: space-between; }
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .theme-grid dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 13px; }

@@ -359,7 +359,7 @@ def test_p01_patch_adds_nodes_and_edges_preserving_layout(app_client) -> None:
     assert cells["n_srv_new_1"].get("parent") == "g_server_zone"
     assert cells["e_link_new_1"].get("source") == "n_core_switch"
     assert cells["e_link_new_1"].get("target") == "n_srv_new_1"
-    assert "shape=mxgraph.cisco.servers.server_with_router" in cells["n_srv_new_1"].get("style")
+    assert "shape=mxgraph.cisco.servers.fileserver;" in cells["n_srv_new_1"].get("style")
     assert "aiKind=server" in cells["n_srv_new_1"].get("style")
     # new edge follows the cisco theme: straight black line, no routing
     assert "strokeColor=#000000" in cells["e_link_new_1"].get("style")

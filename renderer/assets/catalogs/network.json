@@ -44,8 +44,24 @@
     "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;"
   },
   {
+    "id": "cisco.servers.fileserver",
+    "nameZh": "通用服务器",
+    "deviceTypes": [
+      "server"
+    ],
+    "nativeWidth": 27.0,
+    "nativeHeight": 39.33,
+    "defaultWidth": 58,
+    "defaultHeight": 84.49,
+    "style": "sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;",
+    "aliases": [
+      "服务器机箱",
+      "通用服务器"
+    ]
+  },
+  {
     "id": "cisco.servers.server_with_router",
-    "nameZh": "服务器",
+    "nameZh": "带路由标记的服务器",
     "deviceTypes": [
       "server"
     ],

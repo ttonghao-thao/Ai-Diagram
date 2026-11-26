@@ -5,6 +5,17 @@ const PAGE_SIZE = 20;
 const EMPTY_PREFS: ShapePreferences = { mappings: {}, favorites: [], deviceTypes: [] };
 const TYPE_LABELS = { stencil: '原生图形', svg: 'SVG', cell_template: '组合模板' };
 
+export function MaterialPreview({ item }: { item: Material }) {
+  const label = item.nameZh ?? item.name;
+  if (item.assetType === 'svg') {
+    return <img src={api.shapePreview(item.id)} alt={label} width={140} height={100} />;
+  }
+  return <>
+    {item.thumbnail && <img src={api.shapeThumbnail(item.id)} alt={label} width={140} height={100} />}
+    <p><a href={api.shapePreview(item.id)} download>下载原生图形预览</a></p>
+  </>;
+}
+
 export function Themes({ themes }: { themes: Theme[] }) {
   const kind = { auto: '自动避障', straight: '直线', orthogonal: '正交线' };
   return (
@@ -134,12 +145,7 @@ export function Materials() {
           <aside className="material-details">
             <h3>{selected.nameZh ?? selected.name}</h3>
             <code>{selected.id}</code>
-            {selected.assetType === 'svg'
-              ? <img src={api.shapePreview(selected.id)} alt={selected.name} width={140} height={100} />
-              : <>
-                {selected.thumbnail && <img src={api.shapeThumbnail(selected.id)} alt={selected.name} width={140} height={100} />}
-                <p><a href={api.shapePreview(selected.id)} download>下载原生图形预览</a></p>
-              </>}
+            <MaterialPreview item={selected} />
             {selected.assetType === 'cell_template' && <p>组合模板可导出到 draw.io 素材库。</p>}
             <div className="toolbar">
               <button disabled={busy} onClick={() => update({ favorites: prefs.favorites.includes(selected.id)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from app.importer.model_map import STENCIL_KIND_MAP, _kind_from_style
+from app.importer.model_map import STENCIL_KIND_MAP, _kind_from_style, parse_style
 from tests.conftest import load_fixture
 
 
@@ -20,7 +20,7 @@ def test_network_diagram_renders_with_cisco_icons_and_straight_edges(app_client)
     assert "shape=mxgraph.cisco.misc.route_switch_processor" in cells["n_core_switch"].get("style")
     assert "shape=mxgraph.cisco.security.ios_firewall" in cells["n_firewall"].get("style")
     assert "shape=mxgraph.cisco.storage.cloud" in cells["n_wan"].get("style")
-    assert "shape=mxgraph.cisco.servers.server_with_router" in cells["n_server_01"].get("style")
+    assert parse_style(cells["n_server_01"].get("style"))["shape"] == "mxgraph.cisco.servers.fileserver"
     # public network sits on top, servers on the bottom row
     geo = {k: v.find("mxGeometry") for k, v in cells.items() if k.startswith("n_")}
     abs_y = {k: float(g.get("y")) + (float(cells["g_server_zone"].find("mxGeometry").get("y")) if k.startswith("n_server") else 0)
@@ -59,6 +59,7 @@ def test_importer_maps_cisco_stencils_back_to_kinds() -> None:
         ("sketch=0;shape=mxgraph.cisco.routers.router;", "router"),
         ("shape=mxgraph.cisco.security.ios_firewall;", "firewall"),
         ("shape=mxgraph.cisco.misc.route_switch_processor;", "switch"),
+        ("shape=mxgraph.cisco.servers.fileserver;", "server"),
         ("shape=mxgraph.cisco.servers.server_with_router;", "server"),
         ("shape=mxgraph.cisco.storage.cloud;", "cloud"),
     ]:
@@ -83,5 +84,5 @@ def test_directed_edits_follow_theme_and_overrides(app_client) -> None:
     assert applied.status_code == 200, applied.text
     cells = _cells(client.get("/api/v1/diagrams/sample_network/export/drawio?version=2").content)
     assert "shape=mxgraph.networks.server" in cells["n_server_01"].get("style")
-    assert "shape=mxgraph.cisco.servers.server_with_router" in cells["n_extra"].get("style")
+    assert parse_style(cells["n_extra"].get("style"))["shape"] == "mxgraph.cisco.servers.fileserver"
     assert "iconTheme" not in cells["n_extra"].get("style")

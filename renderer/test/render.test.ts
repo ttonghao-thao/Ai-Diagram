@@ -142,7 +142,7 @@ test('kind styles and physical undirected edges are reflected in the XML', async
   assert.ok(cloud?.style?.includes('shape=mxgraph.cisco.storage.cloud'));
   assert.ok(cloud?.style?.includes('verticalAlign=middle'));  // label inside the cloud
   const server = parsed.cellById.get(nodeCellId('server_01'));
-  assert.ok(server?.style?.includes('shape=mxgraph.cisco.servers.server_with_router'));
+  assert.ok(server?.style?.includes('shape=mxgraph.cisco.servers.fileserver;'));
   const phys = parsed.cellById.get(edgeCellId('wan_to_fw'));
   assert.ok(phys?.style?.includes('endArrow=none'));
   // Semantic markers enable lossless edge-type round-trips (Phase 2 importer).

@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="ai-diagram-studio" compressed="false">
+  <diagram id="page-1" name="三机房冗余组网（模板）">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1840" pageHeight="1195" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="g_central_site" value="中心机房" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#E9F1FA;strokeColor=#8299B2;swimlaneFillColor=#F8FAFD;fontColor=#263B57;" vertex="1" parent="1">
+          <mxGeometry x="630.17" y="492.87" width="842" height="661.23" as="geometry" />
+        </mxCell>
+        <mxCell id="g_edge_site" value="边缘机房" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#E9F1FA;strokeColor=#8299B2;swimlaneFillColor=#F8FAFD;fontColor=#263B57;" vertex="1" parent="1">
+          <mxGeometry x="1520.17" y="548.87" width="279.16" height="581.23" as="geometry" />
+        </mxCell>
+        <mxCell id="g_expansion_site" value="扩容机房" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#E9F1FA;strokeColor=#8299B2;swimlaneFillColor=#F8FAFD;fontColor=#263B57;" vertex="1" parent="1">
+          <mxGeometry x="40" y="548.87" width="447" height="581.23" as="geometry" />
+        </mxCell>
+        <mxCell id="g_platform_zone" value="业务平台区" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#E9F1FA;strokeColor=#8299B2;swimlaneFillColor=#F8FAFD;fontColor=#263B57;" vertex="1" parent="g_central_site">
+          <mxGeometry x="338" y="57.09" width="480" height="580.14" as="geometry" />
+        </mxCell>
+        <mxCell id="g_library_zone" value="内容存储区" style="swimlane;html=1;startSize=32;horizontal=1;rounded=1;fillColor=#F4F7FA;strokeColor=#9DB4C8;fontColor=#33506B;swimlaneFillColor=#FBFDFE;rounded=0;fillColor=#E9F1FA;strokeColor=#8299B2;swimlaneFillColor=#F8FAFD;fontColor=#263B57;" vertex="1" parent="g_central_site">
+          <mxGeometry x="24" y="56" width="270.5" height="581.23" as="geometry" />
+        </mxCell>
+        <mxCell id="n_backbone_a" value="骨干网络 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="984.3" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_backbone_b" value="骨干网络 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="1202.3" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_management" value="管理网络" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="1420.3" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_provider_a" value="内容源 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="325.67" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_provider_b" value="内容源 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="543.67" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_provider_c" value="内容源 C" style="sketch=0;outlineConnect=0;html=1;fillColor=#FFFFFF;strokeColor=#000000;pointerEvents=1;shape=mxgraph.cisco.storage.cloud;verticalAlign=middle;align=center;fontColor=#000000;fontSize=12;fontColor=#000000;whiteSpace=wrap;aiKind=cloud;aiNetworkRole=internet;aiShapeId=cisco.storage.cloud;" vertex="1" parent="1">
+          <mxGeometry x="761.67" y="40" width="170" height="97.41" as="geometry" />
+        </mxCell>
+        <mxCell id="n_router_a" value="出口路由 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.routers.router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=router;aiNetworkRole=edge_router;aiShapeId=cisco.routers.router;" vertex="1" parent="1">
+          <mxGeometry x="1013.3" y="229.41" width="84" height="56.75" as="geometry" />
+        </mxCell>
+        <mxCell id="n_firewall_a" value="中心防火墙 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=99;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=firewall;aiNetworkRole=perimeter_security;aiShapeId=cisco.security.ios_firewall;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="77.63" y="56" width="52" height="85.28" as="geometry" />
+        </mxCell>
+        <mxCell id="n_platform_a" value="平台交换 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=access;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="55.13" y="254.19" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_library_a" value="内容交换 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_library_zone">
+          <mxGeometry x="37.5" y="56" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_edge_a" value="边缘交换 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_edge_site">
+          <mxGeometry x="46.16" y="56" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_expansion_a" value="扩容交换 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_expansion_site">
+          <mxGeometry x="50.47" y="56" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_router_b" value="出口路由 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.routers.router;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=router;aiNetworkRole=edge_router;aiShapeId=cisco.routers.router;" vertex="1" parent="1">
+          <mxGeometry x="1147.3" y="229.41" width="84" height="56.75" as="geometry" />
+        </mxCell>
+        <mxCell id="n_firewall_b" value="中心防火墙 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.security.ios_firewall;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=99;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=firewall;aiNetworkRole=perimeter_security;aiShapeId=cisco.security.ios_firewall;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="348.16" y="56" width="52" height="85.28" as="geometry" />
+        </mxCell>
+        <mxCell id="n_platform_b" value="平台交换 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=access;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="327.83" y="254.19" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_library_b" value="内容交换 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_library_zone">
+          <mxGeometry x="171.5" y="56" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_edge_b" value="边缘交换 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_edge_site">
+          <mxGeometry x="180.16" y="56" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_expansion_b" value="扩容交换 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.misc.route_switch_processor;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=86;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=switch;aiNetworkRole=aggregation;aiShapeId=cisco.misc.route_switch_processor;" vertex="1" parent="g_expansion_site">
+          <mxGeometry x="289.5" y="56" width="64" height="87.46" as="geometry" />
+        </mxCell>
+        <mxCell id="n_platform_servers_a" value="平台服务器组 A" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=112;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="371" y="447.65" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_platform_servers_b" value="平台服务器组 B" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=112;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="211" y="447.65" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_platform_servers_c" value="平台服务器组 C" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=112;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_platform_zone">
+          <mxGeometry x="51" y="447.65" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_content_storage" value="内容存储" style="strokeColor=#ffffff;sketch=0;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.cisco.servers.storage_server;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=72;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=generic;aiNetworkRole=endpoint;aiShapeId=cisco.servers.storage_server;" vertex="1" parent="g_library_zone">
+          <mxGeometry x="33" y="449.48" width="54" height="83" as="geometry" />
+        </mxCell>
+        <mxCell id="n_content_servers" value="内容服务器组" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=98;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_library_zone">
+          <mxGeometry x="164" y="448.74" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cache_servers" value="缓存服务器组" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=98;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_edge_site">
+          <mxGeometry x="44" y="448.74" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_edge_storage" value="边缘存储" style="strokeColor=#ffffff;sketch=0;html=1;pointerEvents=1;dashed=0;fillColor=#036897;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.cisco.servers.storage_server;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=72;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=generic;aiNetworkRole=endpoint;aiShapeId=cisco.servers.storage_server;" vertex="1" parent="g_edge_site">
+          <mxGeometry x="179" y="449.48" width="54" height="83" as="geometry" />
+        </mxCell>
+        <mxCell id="n_live_servers" value="直播节点组" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=85;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_expansion_site">
+          <mxGeometry x="183.5" y="448.74" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_monitor_servers" value="监控服务器组" style="sketch=0;outlineConnect=0;html=1;fillColor=#036897;strokeColor=#FFFFFF;pointerEvents=1;shape=mxgraph.cisco.servers.fileserver;verticalLabelPosition=bottom;verticalAlign=top;align=center;spacingTop=8;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=98;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=server;aiNetworkRole=endpoint;aiShapeId=cisco.servers.fileserver;" vertex="1" parent="g_expansion_site">
+          <mxGeometry x="44" y="448.74" width="58" height="84.49" as="geometry" />
+        </mxCell>
+        <mxCell id="n_live_matrix" value="直播矩阵" style="whiteSpace=wrap;html=1;align=center;verticalAlign=middle;rounded=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontColor=#4A3B00;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;aiKind=generic;aiDeviceType=generic;fontSize=12;fontColor=#000000;whiteSpace=wrap;labelWidth=120;verticalLabelPosition=bottom;verticalAlign=top;align=center;aiKind=generic;aiNetworkRole=endpoint;" vertex="1" parent="g_expansion_site">
+          <mxGeometry x="303" y="458.98" width="120" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_backbone_a_router_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;entryX=0.12;entryY=0.1;entryPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_backbone_a" target="n_router_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_backbone_a_router_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;entryX=0.12;entryY=0.1;entryPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_backbone_a" target="n_router_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_backbone_b_router_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;entryX=0.88;entryY=0.1;entryPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_backbone_b" target="n_router_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_backbone_b_router_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;entryX=0.88;entryY=0.1;entryPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_backbone_b" target="n_router_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_a_router_b" value="2×10G" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_a" target="n_router_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_management_firewall_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#7858A2;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_management" target="n_firewall_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_a_firewall_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_a" target="n_firewall_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_a_library_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.12;exitY=0.9;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_a" target="n_library_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_a_edge_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.88;exitY=0.9;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_a" target="n_edge_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_a_expansion_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.12;exitY=0.9;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_a" target="n_expansion_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_firewall_a_platform_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_firewall_a" target="n_platform_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_provider_a_expansion_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#087D72;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_provider_a" target="n_expansion_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_provider_b_expansion_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#087D72;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_provider_b" target="n_expansion_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_provider_c_expansion_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#087D72;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_provider_c" target="n_expansion_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_management_firewall_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#7858A2;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_management" target="n_firewall_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_b_firewall_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_b" target="n_firewall_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_b_library_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.12;exitY=0.9;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_b" target="n_library_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_b_edge_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.88;exitY=0.9;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_b" target="n_edge_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_router_b_expansion_b" value="" style="edgeStyle=segmentEdgeStyle;exitX=0.5;exitY=1;entryX=0.5;entryY=0;sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#2E5EA9;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.12;exitY=0.9;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_router_b" target="n_expansion_b">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1189.3" y="593.96" />
+              <mxPoint x="361.5" y="593.96" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_l_firewall_b_platform_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_firewall_b" target="n_platform_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_provider_a_expansion_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#087D72;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_provider_a" target="n_expansion_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_provider_b_expansion_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#087D72;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_provider_b" target="n_expansion_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_provider_c_expansion_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#087D72;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.99;exitPerimeter=0;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_provider_c" target="n_expansion_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_firewall_a_firewall_b" value="2×10G" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#526782;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_firewall_a" target="n_firewall_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_a_platform_b" value="2×10G" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#526782;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_a" target="n_platform_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_library_a_library_b" value="2×10G" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#526782;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_library_a" target="n_library_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_edge_a_edge_b" value="2×10G" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#526782;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_edge_a" target="n_edge_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_a_expansion_b" value="2×10G" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#526782;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_a" target="n_expansion_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_a_platform_servers_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_a" target="n_platform_servers_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_b_platform_servers_a" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_b" target="n_platform_servers_a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_a_platform_servers_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_a" target="n_platform_servers_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_b_platform_servers_b" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_b" target="n_platform_servers_b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_a_platform_servers_c" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_a" target="n_platform_servers_c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_platform_b_platform_servers_c" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_platform_b" target="n_platform_servers_c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_library_a_content_storage" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_library_a" target="n_content_storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_library_b_content_storage" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_library_b" target="n_content_storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_library_a_content_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_library_a" target="n_content_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_library_b_content_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_library_b" target="n_content_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_edge_a_cache_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_edge_a" target="n_cache_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_edge_b_cache_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_edge_b" target="n_cache_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_edge_a_edge_storage" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_edge_a" target="n_edge_storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_edge_b_edge_storage" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_edge_b" target="n_edge_storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_a_live_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_a" target="n_live_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_b_live_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_b" target="n_live_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_a_monitor_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_a" target="n_monitor_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_b_monitor_servers" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_b" target="n_monitor_servers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_a_live_matrix" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_a" target="n_live_matrix">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_l_expansion_b_live_matrix" value="" style="sketch=0;html=1;strokeColor=#000000;strokeWidth=1;labelBackgroundColor=#FFFFFF;startArrow=none;startFill=0;endArrow=none;endFill=0;strokeColor=#B4602E;strokeWidth=1.5;labelBackgroundColor=#FFFFFF;aiKind=physical;aiDirection=undirected;" edge="1" parent="1" source="n_expansion_b" target="n_live_matrix">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

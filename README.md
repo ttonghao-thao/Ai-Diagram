@@ -47,6 +47,8 @@ node renderer/dist/src/cli.js quality --input fixtures/v1_2_network.graph.json -
 
 使用 [V1.2 网络样例](out/v1_2_network.drawio)检查双防火墙分层、服务器区嵌套分组、编号顺序和原生 Cisco 图标。素材配置和更新流程见 [素材目录说明](renderer/assets/catalogs/README.md)。
 
+生成页的「三机房组网模板」包含双出口、双接入、机房分区和带宽标签，可重复生成独立图纸。解析草稿或加载 Graph JSON 后可为单台或同类型设备选图标。[样例 Graph JSON](fixtures/templates/multi_site_network.graph.json) · [可编辑图纸](out/multi_site_network.drawio)
+
 ## 文件目录
 
 ```text

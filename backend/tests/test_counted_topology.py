@@ -92,7 +92,7 @@ def test_screenshot_text_produces_editable_servers_devices_and_exact_links(app_c
     assert {cell.get("value") for cell in vertices.values()} == servers | devices | {
         "上联交换机1", "上联交换机2", "防火墙", "公网",
     }
-    assert all(parse_style(cell.get("style"))["shape"] == "mxgraph.cisco.servers.server_with_router"
+    assert all(parse_style(cell.get("style"))["shape"] == "mxgraph.cisco.servers.fileserver"
                for cell in vertices.values() if cell.get("value") in servers)
     xml_edges = [cell for cell in cells if cell.get("edge") == "1"]
     assert len(xml_edges) == 8

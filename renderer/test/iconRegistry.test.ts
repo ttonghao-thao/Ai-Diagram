@@ -321,7 +321,7 @@ test('network topology resolves through the cisco theme by default', () => {
     ['router', 'routers.router'],
     ['firewall', 'security.ios_firewall'],
     ['switch', 'misc.route_switch_processor'],
-    ['server', 'servers.server_with_router'],
+    ['server', 'servers.fileserver'],
     ['database', 'storage.relational_database'],
     ['client', 'computers_and_peripherals.pc'],
   ];

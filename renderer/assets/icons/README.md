@@ -17,7 +17,7 @@ Cisco 主题的设备映射（与 draw.io 自带 Cisco 网络模板同款）：
 | 交换机 | `misc.route_switch_processor` | 库中原名 Route Switch Processor |
 | 防火墙 | `security.ios_firewall` | 砖墙 + 四向箭头 |
 | 路由器 | `routers.router` | 圆柱四箭头 |
-| 服务器 | `servers.server_with_router` | 服务器塔 |
+| 服务器 | `servers.fileserver` | 通用单机箱 |
 | 云 / 公网 | `storage.cloud` | 白底描边，文字在云内 |
 | 数据库 | `storage.relational_database` | 圆柱 |
 | 终端 | `computers_and_peripherals.pc` | 台式机 |
@@ -57,12 +57,10 @@ CLI 也可显式指定目录：`node dist/src/cli.js generate --input x.json --o
 
 ## 3. 图标解析优先级（从高到低）
 
-1. `node.style.icon`（单节点内嵌 SVG data URI）
-2. 本目录按 `kind` 匹配的 SVG
-3. 本目录按 `deviceType` 别名匹配的 SVG
-4. 当前主题的别名表（Cisco 优先，没有则 Networks）
-5. `deviceType` 恰好是基础类型名（如 deviceType="firewall"）
-6. 按 `kind` 的默认图标（当前主题，没有则回退 Networks/中性框）
+1. `node.style.shapeId` 指定的单节点素材，或 `node.style.icon` 指定的内嵌 SVG。
+2. 素材库中为当前 `deviceType` 保存的默认映射。
+3. 本目录中按 `deviceType` 或 `kind` 匹配的 SVG。
+4. 当前主题中按 `deviceType` 或 `kind` 匹配的素材，再回退到内置类型图形。
 
 ## 4. 使用第三方素材的许可提醒
 
@@ -75,5 +73,4 @@ Flaticon 等需署名，Cisco 官方图标涉及商标。商用请选 CC0 / MIT 
 - SVG 嵌入形式是**百分号编码** data URI（`image=data:image/svg+xml,%3Csvg...`），不要用 base64：
   draw.io 的 style 按 `;` 切分，base64 头里的分号会把样式截断成空白图标
 - Cisco 图标的颜色来自样式里的 `fillColor`，漏掉会渲染成线稿
-- 主题映射在 `renderer/src/shapes/iconRegistry.ts`（TS）与 `backend/app/importer/xml_edit.py`（Python 镜像）两处维护，
-  由 `tests/test_phase_p1.py::test_stencil_ids_match_between_ts_and_python` 保证同步
+- 主题映射在 `renderer/assets/themes/`，统一由 `renderer/src/shapes/resolve.ts` 解析。回导时优先用 `aiKind`，并可识别旧的 `servers.server_with_router` 和新的 `servers.fileserver`。

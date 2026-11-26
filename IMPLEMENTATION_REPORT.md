@@ -676,3 +676,21 @@ Ollama 0.40.11，`qwen3.5:2b`，模型摘要前缀 `0689d44085e0`。经本地 Op
 | 回归与构建 | `.venv/bin/python -m pytest backend/tests` 126 项通过，有 1 项 Starlette 弃用提示。`npm --prefix renderer test` 71 项通过，`npm --prefix frontend run build` 和 `.venv/bin/python scripts/validate_fixtures.py` 通过。容器内的 `npm ci` 报告前端依赖有 2 项审计告警（1 中危、1 高危）。 |
 
 目标服务器上的目录权限、现有数据迁移和启动未验证。
+
+## 20. 三机房冗余组网模板与草稿图标选择（2026-11-26）
+
+- Cisco 主题曾把 `kind=server` 映射到 `cisco.servers.server_with_router`。固定版本 draw.io Viewer 复现了照片里的四向路由标记。`renderer/assets/themes/cisco.json` 改用 `cisco.servers.fileserver` 通用单机箱，素材库保留旧图标作为可选素材。`backend/app/importer/model_map.py` 可以识别两种原生 cell。
+- `fixtures/templates/multi_site_network.graph.json` 将照片中的骨干双出口、机房分区、冗余交换与双接入整理为脱敏样例。ELK 使用层级和 A/B 顺序约束生成 28 个节点、48 条连线、3 个机房和 2 个嵌套分区。`out/multi_site_network.drawio` 是通过 Renderer 实际生成的原生图纸。
+- `frontend/src/components/DraftIcons.tsx` 用现有素材目录查询图标。生成页的文本草稿及 Graph JSON 均支持单台选择、同类型批量选择和恢复默认。型号与业务类型由用户在 Graph 中确认。生成工作台给每次载入模板或解析的新草稿分配独立 `diagramId`。
+
+### 验证结果
+
+| 检查 | 命令与实测结果 |
+|---|---|
+| Schema 与渲染 | `.venv/bin/python scripts/validate_fixtures.py` 验证 5 个 Graph fixture 和预制 XML。`node renderer/dist/src/cli.js generate --input fixtures/templates/multi_site_network.graph.json --output out/multi_site_network.drawio` 生成 33 个独立顶点（含 5 个组）和 48 条独立边。`validate` 和 `quality` 通过，0 个错误，1 个 `UNKNOWN_DEVICE_TYPE` 提示对应通用图形的直播矩阵。 |
+| 原生渲染 | 用清单固定的 draw.io v24.7.17 Viewer 和 Cisco stencil 在 Chrome 渲染。逐个核对服务器机箱缩略图，并打开三机房图纸确认区域、设备和带宽标签。导出文件 SHA-256 为 `311f97dbde0bc03f3995de61dcab8c776b2aabe2c23cc50dc6a1721a97c17e2c`。 |
+| 工作台 | Chrome 连接本地 FastAPI 和真实 Renderer，采用 mock 解析。两次载入模板均生成独立图纸。使用同一句中文需求复跑单台换图标、恢复默认、同类批量替换和 `.drawio` 下载。比较导出的设备 `aiKind`、图标和全部边端点。 |
+| 已保存图及回导 | 使用 `POST /api/v1/diagrams/{id}/import/preview` 回读复杂样例，未发现缺失端点、分组变化或未知 cell。用原 `server_with_router` 建立测试旧图，`patch/preview`、`patch/apply` 只更换指定设备的图标，v1 原始文件与 v2 的边端点校验通过。 |
+| 回归 | `.venv/bin/python -m pytest backend/tests` 127 项通过，1 项 Starlette 依赖弃用提示。`npm --prefix renderer test` 71 项通过，`npm --prefix frontend run build` 通过。 |
+
+照片中重叠的上联端点、端口号和完整型号需对照原图或链路清单核对。实际 Windows draw.io Desktop 编辑和目标服务器页面未验证。
