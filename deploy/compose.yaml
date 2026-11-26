@@ -9,7 +9,16 @@ services:
     env_file:
       - .env
     volumes:
-      - studio-data:/data/storage
+      - type: bind
+        source: ${STUDIO_DATA_DIR:-/mnt/ai-diagram/data}
+        target: /data/storage
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${STUDIO_LOG_DIR:-/mnt/ai-diagram/logs}
+        target: /data/logs
+        bind:
+          create_host_path: true
     restart: unless-stopped
     healthcheck:
       # Mirrors the Dockerfile HEALTHCHECK (image-level check also applies).
@@ -18,6 +27,3 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
-
-volumes:
-  studio-data:

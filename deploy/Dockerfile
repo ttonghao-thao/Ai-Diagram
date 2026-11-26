@@ -2,12 +2,9 @@
 #
 # Build & run (from the repository root):
 #   docker build -f deploy/Dockerfile -t ai-diagram-studio .
-#   docker run -p 8000:8000 -v ai-diagram-data:/data/storage ai-diagram-studio
+#   docker run -p 8000:8000 -v /mnt/ai-diagram/data:/data/storage \
+#     -v /mnt/ai-diagram/logs:/data/logs ai-diagram-studio
 # Or: cd deploy && cp env.example .env && docker compose up --build
-#
-# STATUS: reviewed line-by-line and hardened (npm ci everywhere, .dockerignore,
-# HEALTHCHECK), but an actual `docker compose up --build` has NOT been executed
-# on the development machine (no Docker available). See docs/09_DEPLOYMENT.md.
 FROM node:20-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -32,6 +29,8 @@ COPY . /studio
 RUN cd /studio/renderer && npm run build \
     && cd /studio/frontend && npm run build
 
+RUN mkdir -p /data/logs
+
 ENV STORAGE_ROOT=/data/storage \
     DATABASE_PATH=/data/storage/studio.db \
     LLM_ENABLED=false \
@@ -47,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD python3 -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).status==200 else 1)"
 
 WORKDIR /studio/backend
-CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-config", "/studio/deploy/logging.json"]

@@ -658,3 +658,21 @@ Ollama 0.40.11，`qwen3.5:2b`，模型摘要前缀 `0689d44085e0`。经本地 Op
 - `npm --prefix frontend run build` 与 `.venv/bin/python scripts/validate_fixtures.py` 通过。
 - 通过 `ollama serve` 在临时回环端口使用本地 `qwen3.5:2b`，在隔离 SQLite 与文件目录通过工作台 API 复测原句。模型两次输出均为不完整 JSON，回退后解析、创建和导出通过。XML 有 9 个节点和 8 条连线，SHA-256 为 `a08dbc7ab1871818aeb5ce860508e5cd1e9d45a0d70a2be69614747b175ae287`。
 - 待验收为用户线上模型网关、部署后的门户和 Windows draw.io Desktop 手工编辑。
+
+## 19. Docker 宿主机数据和日志目录（2026-11-26）
+
+- `deploy/compose.yaml` 默认将宿主机 `/mnt/ai-diagram/data` 和 `/mnt/ai-diagram/logs` 分别绑定到 `/data/storage` 和 `/data/logs`。`deploy/env.example` 提供 `STUDIO_DATA_DIR` 和 `STUDIO_LOG_DIR` 覆盖项。
+- `deploy/Dockerfile` 加载 `deploy/logging.json`，同时输出容器日志及 `studio.log`、`access.log` 文件。每个日志文件按 10 MiB 轮转并保留 3 个轮转文件。访问日志记录时间、日志级别和 HTTP 状态。`backend/tests/test_dockerignore_guard.py` 覆盖镜像所需的日志配置。
+- `deploy/README.md` 和 [部署方案](docs/09_DEPLOYMENT.md) 更新启动、备份和停服迁移步骤。复制旧卷时只读挂载源卷，对非空目的目录拒绝写入。`docs/11_OPEN_ISSUES.md` 记录目标服务器验收状态。
+
+### 验证结果
+
+| 检查 | 命令与实测结果 |
+|---|---|
+| Compose 默认路径和覆盖 | 用 Compose v2.29.7 的 `config --format json` 核对两个读写绑定挂载及目录自动创建选项。`.env` 覆盖、Shell 优先和空值回退均通过。 |
+| 构建和实际挂载 | 在隔离 Linux arm64 的 Docker Engine 29.10.1、Compose v5.8.0 执行 `docker compose --progress plain build studio` 和 `docker compose up -d --wait --no-build`。镜像构建、`/health`、工作台静态页面均通过。`docker inspect` 确认两个 `/mnt/ai-diagram` 子目录已绑定并可读写。 |
+| 旧卷迁移和重建 | 使用原 Compose 的命名卷配置生成测试图纸。按部署文档停服复制，校验 SQLite `PRAGMA integrity_check`，复测非空目录拒绝复制。新容器读取到原版本。执行 `docker compose up -d --no-build --force-recreate --wait` 后，下载的 `.drawio` 与迁移前 SHA-256 一致，为 `4011b5629964f6c9ef644831ec6a55da855c0062b617ed9db92adad31f8ac93a`。旧卷仍可查询。 |
+| 日志 | 宿主机的两个日志文件均有实际输出，重建后继续追加。`docker compose logs studio` 可查看日志。访问日志过滤了测试请求的客户端地址和查询参数。用临时 1 KiB 阈值验证两个文件各保留 3 个轮转文件。 |
+| 回归与构建 | `.venv/bin/python -m pytest backend/tests` 126 项通过，有 1 项 Starlette 弃用提示。`npm --prefix renderer test` 71 项通过，`npm --prefix frontend run build` 和 `.venv/bin/python scripts/validate_fixtures.py` 通过。容器内的 `npm ci` 报告前端依赖有 2 项审计告警（1 中危、1 高危）。 |
+
+目标服务器上的目录权限、现有数据迁移和启动未验证。

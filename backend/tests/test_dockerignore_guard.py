@@ -42,6 +42,7 @@ def test_dockerignore_keeps_all_runtime_files() -> None:
         "backend/app/importer/xml_edit.py",
         "backend/app/llm/adapter.py",
         "backend/requirements.txt",
+        "deploy/logging.json",
         # renderer + frontend build inputs and lockfiles
         "renderer/package.json",
         "renderer/package-lock.json",
@@ -58,7 +59,7 @@ def test_dockerignore_keeps_all_runtime_files() -> None:
         assert (REPO / rel).is_file(), f"reference file missing in repo: {rel}"
         assert not _docker_ignored(rel, patterns), \
             f".dockerignore would exclude runtime file '{rel}' — the container " \
-            "would crash with ModuleNotFoundError at startup"
+            "would fail at startup or during a request"
 
 
 def test_dockerignore_never_excludes_directories_by_name() -> None:

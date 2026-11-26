@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "service": {
+      "format": "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+    },
+    "access": {
+      "()": "uvicorn.logging.AccessFormatter",
+      "fmt": "%(asctime)s %(levelname)s [%(name)s] HTTP %(status_code)s",
+      "use_colors": false
+    }
+  },
+  "handlers": {
+    "stderr": {
+      "class": "logging.StreamHandler",
+      "formatter": "service",
+      "stream": "ext://sys.stderr"
+    },
+    "stdout": {
+      "class": "logging.StreamHandler",
+      "formatter": "access",
+      "stream": "ext://sys.stdout"
+    },
+    "service_file": {
+      "class": "logging.handlers.RotatingFileHandler",
+      "formatter": "service",
+      "filename": "/data/logs/studio.log",
+      "encoding": "utf-8",
+      "maxBytes": 10485760,
+      "backupCount": 3
+    },
+    "access_file": {
+      "class": "logging.handlers.RotatingFileHandler",
+      "formatter": "access",
+      "filename": "/data/logs/access.log",
+      "encoding": "utf-8",
+      "maxBytes": 10485760,
+      "backupCount": 3
+    }
+  },
+  "root": {
+    "level": "WARNING",
+    "handlers": ["stderr", "service_file"]
+  },
+  "loggers": {
+    "uvicorn": {
+      "level": "INFO"
+    },
+    "uvicorn.access": {
+      "level": "INFO",
+      "handlers": ["stdout", "access_file"],
+      "propagate": false
+    }
+  }
+}
